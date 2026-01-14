@@ -1,0 +1,16 @@
+street,city,state,postal_code,recipient_name,phone,notes,service_time_minutes
+123 Summit Avenue,St Paul,MN,55102,John Anderson,651-555-0101,Leave by front door,5
+456 Grand Avenue,St Paul,MN,55105,Mary Johnson,651-555-0102,Ring doorbell,5
+789 Selby Avenue,St Paul,MN,55104,David Smith,651-555-0103,Apartment 2B,7
+234 University Avenue,St Paul,MN,55103,Sarah Williams,651-555-0104,Business delivery,5
+567 Randolph Avenue,St Paul,MN,55102,Michael Brown,651-555-0105,Side entrance,5
+890 Marshall Avenue,St Paul,MN,55104,Jennifer Davis,651-555-0106,Call on arrival,5
+345 Snelling Avenue,St Paul,MN,55105,Robert Miller,651-555-0107,Gate code 1234,7
+678 Dale Street,St Paul,MN,55103,Lisa Wilson,651-555-0108,Porch delivery,5
+901 Rice Street,St Paul,MN,55117,James Moore,651-555-0109,Knock loudly,5
+123 Payne Avenue,St Paul,MN,55101,Patricia Taylor,651-555-0110,Leave with neighbor,7
+456 Arcade Street,St Paul,MN,55106,Christopher Anderson,651-555-0111,Back door,5
+789 White Bear Avenue,St Paul,MN,55106,Elizabeth Thomas,651-555-0112,Ring twice,5
+234 Larpenteur Avenue,St Paul,MN,55113,Daniel Jackson,651-555-0113,Office building,7
+567 Maryland Avenue,St Paul,MN,55117,Nancy White,651-555-0114,Basement entrance,5
+890 Como Avenue,St Paul,MN,55108,Mark Harris,651-555-0115,Weekend delivery preferred,5

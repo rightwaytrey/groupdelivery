@@ -1,0 +1,43 @@
+# Group Delivery Optimizer - Caddy Configuration
+# Backend API on port 9966, Frontend on port 9967
+
+# Backend API - Port 9966
+:9966 {
+    reverse_proxy localhost:8000
+
+    # CORS headers for API
+    header {
+        Access-Control-Allow-Origin *
+        Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+    }
+
+    # Handle OPTIONS requests for CORS preflight
+    @options {
+        method OPTIONS
+    }
+    respond @options 204
+
+    # Compression
+    encode gzip
+
+    # Logging
+    log {
+        output stdout
+        format console
+    }
+}
+
+# Frontend - Port 9967
+:9967 {
+    reverse_proxy localhost:5173
+
+    # Compression
+    encode gzip
+
+    # Logging
+    log {
+        output stdout
+        format console
+    }
+}

@@ -71,6 +71,13 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ### Reset Admin Password
 
+First, make sure you have the latest code and rebuild containers:
+```bash
+git pull
+sudo docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Then run the password reset script:
 ```bash
 sudo ./reset_password.sh
 ```

@@ -75,7 +75,13 @@ done
 
 # Reset the password
 print_warning "Resetting password..."
-if docker exec groupdelivery-backend python /app/reset_admin_password.py "$USERNAME" "$PASSWORD"; then
+if docker exec groupdelivery-backend python /app/reset_admin_password.py "$USERNAME" "$PASSWORD" 2>&1 | grep -q "can't open file"; then
+    echo
+    print_error "Password reset script not found in container"
+    print_warning "You need to rebuild the containers to include the latest changes:"
+    echo -e "  ${BLUE}sudo docker compose -f docker-compose.prod.yml up -d --build${NC}"
+    exit 1
+elif docker exec groupdelivery-backend python /app/reset_admin_password.py "$USERNAME" "$PASSWORD"; then
     echo
     print_success "Password reset complete!"
 else

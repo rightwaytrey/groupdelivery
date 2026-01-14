@@ -1,83 +1,78 @@
 #!/usr/bin/env python3
 """
-Create an admin user for the Group Delivery Optimizer application.
-Run this script to create the first user account.
+Create initial admin user for Group Delivery app
+Usage: python create_admin.py <username> <email> <password>
 """
-import asyncio
+
 import sys
-import getpass
-from sqlalchemy import select
-from app.database import AsyncSessionLocal
-from app.models.user import User
-from app.services.auth import get_password_hash
+import sqlite3
+from datetime import datetime
+from passlib.context import CryptContext
+
+# Setup password hashing - using argon2 to match the auth service
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+db_path = "/app/data/delivery.db"
 
 
-async def create_admin_user():
-    print("=" * 60)
-    print("Create Admin User for Group Delivery Optimizer")
-    print("=" * 60)
-    print()
+def create_admin_user(username: str, email: str, password: str):
+    """Create an admin user in the database."""
 
-    # Get user input
-    print("Enter details for the admin user:")
-    username = input("Username: ").strip()
-    if not username or len(username) < 3:
-        print("Error: Username must be at least 3 characters")
-        sys.exit(1)
+    try:
+        conn = sqlite3.connect(db_path, timeout=5)
+        cursor = conn.cursor()
 
-    email = input("Email: ").strip()
-    if not email or "@" not in email:
-        print("Error: Invalid email address")
-        sys.exit(1)
+        # Create users table if it doesn't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(100) UNIQUE NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                hashed_password VARCHAR(255) NOT NULL,
+                full_name VARCHAR(255),
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                is_superuser BOOLEAN NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME
+            )
+        """)
 
-    full_name = input("Full Name (optional): ").strip() or None
+        # Check if user already exists
+        cursor.execute("SELECT username FROM users WHERE username = ?", (username,))
+        if cursor.fetchone():
+            print(f"User '{username}' already exists")
+            conn.close()
+            return False
 
-    password = getpass.getpass("Password (min 8 characters): ")
-    if len(password) < 8:
-        print("Error: Password must be at least 8 characters")
-        sys.exit(1)
+        # Hash password
+        hashed_password = pwd_context.hash(password)
+        now = datetime.utcnow().isoformat()
 
-    password_confirm = getpass.getpass("Confirm Password: ")
-    if password != password_confirm:
-        print("Error: Passwords do not match")
-        sys.exit(1)
+        # Insert admin user
+        cursor.execute("""
+            INSERT INTO users (username, email, hashed_password, full_name, is_active, is_superuser, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (username, email, hashed_password, "Administrator", True, True, now, now))
 
-    # Create user in database
-    async with AsyncSessionLocal() as db:
-        # Check if username exists
-        result = await db.execute(select(User).where(User.username == username))
-        if result.scalar_one_or_none():
-            print(f"\nError: Username '{username}' already exists")
-            sys.exit(1)
+        conn.commit()
+        conn.close()
 
-        # Check if email exists
-        result = await db.execute(select(User).where(User.email == email))
-        if result.scalar_one_or_none():
-            print(f"\nError: Email '{email}' already registered")
-            sys.exit(1)
+        print(f"✓ Admin user '{username}' created successfully")
+        return True
 
-        # Create user
-        hashed_password = get_password_hash(password)
-        new_user = User(
-            username=username,
-            email=email,
-            full_name=full_name,
-            hashed_password=hashed_password,
-            is_active=True,
-            is_superuser=True  # First user is always superuser
-        )
-
-        db.add(new_user)
-        await db.commit()
-
-    print("\n" + "=" * 60)
-    print("✓ Admin user created successfully!")
-    print("=" * 60)
-    print(f"Username: {username}")
-    print(f"Email: {email}")
-    print("\nYou can now log in to the application with these credentials.")
-    print("=" * 60)
+    except Exception as e:
+        print(f"Error creating admin user: {e}")
+        return False
 
 
 if __name__ == "__main__":
-    asyncio.run(create_admin_user())
+    if len(sys.argv) != 4:
+        print("Usage: python create_admin.py <username> <email> <password>")
+        sys.exit(1)
+
+    username = sys.argv[1]
+    email = sys.argv[2]
+    password = sys.argv[3]
+
+    success = create_admin_user(username, email, password)
+    sys.exit(0 if success else 1)

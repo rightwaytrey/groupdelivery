@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # Caddy reverse proxy with automatic HTTPS
+  caddy:
+    image: caddy:2-alpine
+    container_name: groupdelivery-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - groupdelivery-network
+    depends_on:
+      - frontend
+      - backend
+
+  # Backend FastAPI service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: groupdelivery-backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/delivery.db
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - OSRM_HOST=${OSRM_HOST:-http://router.project-osrm.org}
+      - GEOCODING_API_KEY=${GEOCODING_API_KEY:-}
+      - GEOCODING_PROVIDER=${GEOCODING_PROVIDER:-nominatim}
+    volumes:
+      - ./data:/app/data
+    networks:
+      - groupdelivery-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend React/Nginx service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: groupdelivery-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - groupdelivery-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  groupdelivery-network:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

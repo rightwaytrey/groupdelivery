@@ -143,7 +143,7 @@ export default function Routes() {
     if (!selectedDeliveryDayId) return;
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/delivery/api/optimize/delivery-days/${selectedDeliveryDayId}/export`, {
+      const response = await fetch(`/api/optimize/delivery-days/${selectedDeliveryDayId}/export`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -200,7 +200,7 @@ export default function Routes() {
   const handleExportRoute = async (routeId: number) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/delivery/api/optimize/routes/${routeId}/export`, {
+      const response = await fetch(`/api/optimize/routes/${routeId}/export`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

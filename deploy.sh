@@ -13,6 +13,9 @@
 
 set -e
 
+# Config file for saved settings
+CONFIG_FILE=".deploy-config"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -37,6 +40,24 @@ print_error() {
 
 print_warning() {
     echo -e "${YELLOW}⚠ $1${NC}"
+}
+
+# Load saved config
+load_config() {
+    if [ -f "$CONFIG_FILE" ]; then
+        source "$CONFIG_FILE"
+    fi
+}
+
+# Save config
+save_config() {
+    cat > "$CONFIG_FILE" << EOF
+# Deployment configuration
+# Generated on $(date)
+DOMAIN=$1
+EOF
+    chmod 600 "$CONFIG_FILE"
+    print_success "Saved configuration to $CONFIG_FILE"
 }
 
 # Check if running as root
@@ -93,43 +114,23 @@ print_success "Docker Compose is available"
 # Prompt for configuration
 print_header "Configuration"
 
+# Load saved configuration
+load_config
+
 # Domain name
-read -p "Enter your domain name (e.g., delivery.example.com): " DOMAIN
+if [ -n "$DOMAIN" ]; then
+    print_warning "Previously saved domain: $DOMAIN"
+    read -p "Press Enter to use this domain, or type a new domain: " NEW_DOMAIN
+    if [ -n "$NEW_DOMAIN" ]; then
+        DOMAIN="$NEW_DOMAIN"
+    fi
+else
+    read -p "Enter your domain name (e.g., delivery.example.com): " DOMAIN
+fi
+
 if [ -z "$DOMAIN" ]; then
     print_error "Domain name is required"
     exit 1
-fi
-
-# Admin username
-read -p "Enter admin username: " ADMIN_USER
-if [ -z "$ADMIN_USER" ]; then
-    print_error "Admin username is required"
-    exit 1
-fi
-
-# Admin password
-while true; do
-    read -s -p "Enter admin password: " ADMIN_PASS
-    echo
-    read -s -p "Confirm admin password: " ADMIN_PASS_CONFIRM
-    echo
-
-    if [ "$ADMIN_PASS" = "$ADMIN_PASS_CONFIRM" ]; then
-        if [ ${#ADMIN_PASS} -lt 8 ]; then
-            print_error "Password must be at least 8 characters"
-            continue
-        fi
-        break
-    else
-        print_error "Passwords do not match"
-    fi
-done
-
-# Admin email
-read -p "Enter admin email: " ADMIN_EMAIL
-if [ -z "$ADMIN_EMAIL" ]; then
-    ADMIN_EMAIL="${ADMIN_USER}@${DOMAIN}"
-    print_warning "Using default email: $ADMIN_EMAIL"
 fi
 
 # Generate configuration files
@@ -164,6 +165,9 @@ fi
 
 sed "s/DOMAIN_PLACEHOLDER/${DOMAIN}/g" Caddyfile.template > Caddyfile
 print_success "Created Caddyfile with domain: $DOMAIN"
+
+# Save configuration
+save_config "$DOMAIN"
 
 # Create data directory
 mkdir -p data
@@ -205,10 +209,50 @@ if [ $attempt -eq $max_attempts ]; then
     exit 1
 fi
 
-# Create admin user
-print_header "Creating Admin User"
+# Create admin user (if needed)
+print_header "Admin User Setup"
 
-docker exec groupdelivery-backend python /app/create_admin.py "$ADMIN_USER" "$ADMIN_EMAIL" "$ADMIN_PASS"
+# Check if admin already exists
+if docker exec groupdelivery-backend python /app/check_admin.py &>/dev/null; then
+    print_success "Admin user already exists - skipping admin creation"
+else
+    print_warning "No admin user found - creating admin user"
+
+    # Admin username
+    read -p "Enter admin username: " ADMIN_USER
+    if [ -z "$ADMIN_USER" ]; then
+        print_error "Admin username is required"
+        exit 1
+    fi
+
+    # Admin password
+    while true; do
+        read -s -p "Enter admin password: " ADMIN_PASS
+        echo
+        read -s -p "Confirm admin password: " ADMIN_PASS_CONFIRM
+        echo
+
+        if [ "$ADMIN_PASS" = "$ADMIN_PASS_CONFIRM" ]; then
+            if [ ${#ADMIN_PASS} -lt 8 ]; then
+                print_error "Password must be at least 8 characters"
+                continue
+            fi
+            break
+        else
+            print_error "Passwords do not match"
+        fi
+    done
+
+    # Admin email
+    read -p "Enter admin email: " ADMIN_EMAIL
+    if [ -z "$ADMIN_EMAIL" ]; then
+        ADMIN_EMAIL="${ADMIN_USER}@${DOMAIN}"
+        print_warning "Using default email: $ADMIN_EMAIL"
+    fi
+
+    # Create the admin user
+    docker exec groupdelivery-backend python /app/create_admin.py "$ADMIN_USER" "$ADMIN_EMAIL" "$ADMIN_PASS"
+fi
 
 # Final instructions
 print_header "Deployment Complete!"

@@ -48,3 +48,6 @@ temp/
 
 # Claude project files (optional - remove if you want to keep)
 .claude/
+
+# Deployment config
+.deploy-config

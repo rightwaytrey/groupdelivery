@@ -9,8 +9,8 @@ import sqlite3
 from datetime import datetime
 from passlib.context import CryptContext
 
-# Setup password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Setup password hashing - using argon2 to match the auth service
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 db_path = "/app/data/delivery.db"
 

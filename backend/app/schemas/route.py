@@ -74,6 +74,8 @@ class Route(RouteBase):
 class DriverConstraints(BaseModel):
     max_stops: Optional[int] = Field(default=15, ge=1, le=50)
     max_route_duration_minutes: Optional[int] = Field(default=120, ge=60, le=720)
+    start_time: Optional[str] = Field(default=None, description="Driver start time (HH:MM), defaults to global start_time")
+    end_at_home: Optional[bool] = Field(default=False, description="End route at driver's home instead of depot")
 
 
 # Optimization request/response schemas

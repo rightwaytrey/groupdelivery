@@ -23,7 +23,12 @@ export default function Routes() {
   const [selectedAddresses, setSelectedAddresses] = useState<number[]>([]);
   const [selectedDrivers, setSelectedDrivers] = useState<number[]>([]);
   const [startTime, setStartTime] = useState('09:00');
-  const [driverConstraints, setDriverConstraints] = useState<Record<number, { max_stops?: number; max_route_duration_minutes?: number }>>({});
+  const [driverConstraints, setDriverConstraints] = useState<Record<number, {
+    max_stops?: number;
+    max_route_duration_minutes?: number;
+    start_time?: string;
+    end_at_home?: boolean;
+  }>>({});
 
   useEffect(() => {
     loadData();
@@ -414,52 +419,108 @@ export default function Routes() {
                       </span>
                     </label>
                     {selectedDrivers.includes(driver.id) && (
-                      <div className="mt-3 ml-7 grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Max Stops
-                          </label>
+                      <div className="mt-3 ml-7 space-y-3">
+                        {/* End at home checkbox */}
+                        <div className="flex items-center">
                           <input
-                            type="number"
-                            min="1"
-                            max="50"
-                            value={driverConstraints[driver.id]?.max_stops ?? ''}
+                            type="checkbox"
+                            id={`end_at_home_${driver.id}`}
+                            checked={driverConstraints[driver.id]?.end_at_home ?? false}
                             onChange={(e) => {
-                              const value = e.target.value === '' ? undefined : parseInt(e.target.value);
                               setDriverConstraints(prev => ({
                                 ...prev,
                                 [driver.id]: {
                                   ...prev[driver.id],
-                                  max_stops: value
+                                  end_at_home: e.target.checked
                                 }
                               }));
                             }}
-                            placeholder="15"
-                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm px-2 py-1 border"
+                            disabled={!driver.home_latitude || !driver.home_longitude}
+                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                           />
+                          <label
+                            htmlFor={`end_at_home_${driver.id}`}
+                            className={`ml-2 text-xs ${!driver.home_latitude ? 'text-gray-400' : 'text-gray-600'}`}
+                          >
+                            End at home address
+                            {!driver.home_latitude && ' (no home address set)'}
+                          </label>
                         </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Max Route Duration (min)
-                          </label>
-                          <input
-                            type="number"
-                            min="60"
-                            max="720"
-                            value={driverConstraints[driver.id]?.max_route_duration_minutes ?? ''}
-                            onChange={(e) => {
-                              const value = e.target.value === '' ? undefined : parseInt(e.target.value);
-                              setDriverConstraints(prev => ({
-                                ...prev,
-                                [driver.id]: {
-                                  ...prev[driver.id],
-                                  max_route_duration_minutes: value
-                                }
-                              }));
-                            }}
-                            placeholder="120"
-                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm px-2 py-1 border"
-                          />
+
+                        {/* Show home address if available */}
+                        {driver.home_address && (
+                          <p className="text-xs text-gray-500 ml-6">
+                            Home: {driver.home_address}
+                          </p>
+                        )}
+
+                        {/* Constraint inputs */}
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Start Time
+                            </label>
+                            <input
+                              type="time"
+                              value={driverConstraints[driver.id]?.start_time ?? startTime}
+                              onChange={(e) => {
+                                setDriverConstraints(prev => ({
+                                  ...prev,
+                                  [driver.id]: {
+                                    ...prev[driver.id],
+                                    start_time: e.target.value || undefined
+                                  }
+                                }));
+                              }}
+                              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm px-2 py-1 border"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Max Stops
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="50"
+                              value={driverConstraints[driver.id]?.max_stops ?? ''}
+                              onChange={(e) => {
+                                const value = e.target.value === '' ? undefined : parseInt(e.target.value);
+                                setDriverConstraints(prev => ({
+                                  ...prev,
+                                  [driver.id]: {
+                                    ...prev[driver.id],
+                                    max_stops: value
+                                  }
+                                }));
+                              }}
+                              placeholder="15"
+                              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm px-2 py-1 border"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Max Route Duration (min)
+                            </label>
+                            <input
+                              type="number"
+                              min="60"
+                              max="720"
+                              value={driverConstraints[driver.id]?.max_route_duration_minutes ?? ''}
+                              onChange={(e) => {
+                                const value = e.target.value === '' ? undefined : parseInt(e.target.value);
+                                setDriverConstraints(prev => ({
+                                  ...prev,
+                                  [driver.id]: {
+                                    ...prev[driver.id],
+                                    max_route_duration_minutes: value
+                                  }
+                                }));
+                              }}
+                              placeholder="120"
+                              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm px-2 py-1 border"
+                            />
+                          </div>
                         </div>
                       </div>
                     )}
@@ -473,7 +534,12 @@ export default function Routes() {
                 const activeDriverIds = drivers.filter(d => d.is_active).map(d => d.id);
                 setSelectedDrivers(activeDriverIds);
                 // Initialize constraints for all drivers
-                const newConstraints: Record<number, { max_stops?: number; max_route_duration_minutes?: number }> = {};
+                const newConstraints: Record<number, {
+                  max_stops?: number;
+                  max_route_duration_minutes?: number;
+                  start_time?: string;
+                  end_at_home?: boolean;
+                }> = {};
                 activeDriverIds.forEach(id => {
                   newConstraints[id] = {
                     max_stops: 15,

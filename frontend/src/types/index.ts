@@ -135,7 +135,12 @@ export interface OptimizationRequest {
   depot_longitude?: number;
   depot_address?: string;
   start_time?: string;
-  driver_constraints?: Record<number, { max_stops?: number; max_route_duration_minutes?: number }>;
+  driver_constraints?: Record<number, {
+    max_stops?: number;
+    max_route_duration_minutes?: number;
+    start_time?: string;
+    end_at_home?: boolean;
+  }>;
   time_limit_seconds?: number;
 }
 

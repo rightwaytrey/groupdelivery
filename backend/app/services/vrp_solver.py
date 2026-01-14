@@ -14,7 +14,9 @@ class VRPSolver:
         distance_matrix: List[List[float]],
         duration_matrix: List[List[float]],
         num_vehicles: int,
-        depot_index: int = 0
+        depot_index: int = 0,
+        vehicle_starts: Optional[List[int]] = None,
+        vehicle_ends: Optional[List[int]] = None
     ):
         """
         Initialize VRP solver.
@@ -24,12 +26,21 @@ class VRPSolver:
             duration_matrix: NxN matrix of durations in minutes
             num_vehicles: Number of available vehicles/drivers
             depot_index: Index of depot location (default: 0)
+            vehicle_starts: Per-vehicle start location indices (default: all depot)
+            vehicle_ends: Per-vehicle end location indices (default: all depot)
         """
         self.distance_matrix = distance_matrix
         self.duration_matrix = duration_matrix
         self.num_vehicles = num_vehicles
         self.depot_index = depot_index
         self.num_locations = len(distance_matrix)
+
+        # Per-vehicle start/end locations
+        self.vehicle_starts = vehicle_starts or [depot_index] * num_vehicles
+        self.vehicle_ends = vehicle_ends or [depot_index] * num_vehicles
+
+        # Per-vehicle start time offsets (in minutes from the global start time)
+        self.vehicle_start_offsets = [0] * num_vehicles
 
         # Default constraints
         self.service_times = [5] * self.num_locations  # 5 minutes per stop
@@ -69,6 +80,10 @@ class VRPSolver:
         """Set maximum duration for each vehicle in minutes."""
         self.max_route_durations = durations
 
+    def set_vehicle_start_offsets(self, offsets: List[int]):
+        """Set start time offset for each vehicle (minutes from global start)."""
+        self.vehicle_start_offsets = offsets
+
     def solve(self, time_limit_seconds: int = 30) -> Optional[Dict]:
         """
         Solve the VRP and return optimized routes.
@@ -80,11 +95,27 @@ class VRPSolver:
             Dictionary with route solutions, or None if no solution found
         """
         # Create the routing index manager
-        manager = pywrapcp.RoutingIndexManager(
-            self.num_locations,
-            self.num_vehicles,
-            self.depot_index
+        # Check if we need per-vehicle start/end locations
+        use_per_vehicle_locations = (
+            self.vehicle_starts != [self.depot_index] * self.num_vehicles or
+            self.vehicle_ends != [self.depot_index] * self.num_vehicles
         )
+
+        if use_per_vehicle_locations:
+            # Use per-vehicle start/end constructor
+            manager = pywrapcp.RoutingIndexManager(
+                self.num_locations,
+                self.num_vehicles,
+                self.vehicle_starts,
+                self.vehicle_ends
+            )
+        else:
+            # Use simple depot constructor (backwards compatible)
+            manager = pywrapcp.RoutingIndexManager(
+                self.num_locations,
+                self.num_vehicles,
+                self.depot_index
+            )
 
         # Create routing model
         routing = pywrapcp.RoutingModel(manager)
@@ -129,6 +160,12 @@ class VRPSolver:
         for vehicle_id in range(self.num_vehicles):
             index = routing.End(vehicle_id)
             time_dimension.CumulVar(index).SetMax(self.max_route_durations[vehicle_id])
+
+        # Set per-vehicle start time offsets
+        for vehicle_id in range(self.num_vehicles):
+            start_index = routing.Start(vehicle_id)
+            offset = self.vehicle_start_offsets[vehicle_id]
+            time_dimension.CumulVar(start_index).SetRange(offset, offset)  # Force start at offset
 
         # Add time windows constraints
         for location_idx in range(self.num_locations):
@@ -211,7 +248,9 @@ class VRPSolver:
                 'vehicle_id': vehicle_id,
                 'stops': [],
                 'distance_km': 0.0,
-                'duration_minutes': 0.0
+                'duration_minutes': 0.0,
+                'start_location_index': self.vehicle_starts[vehicle_id],
+                'end_location_index': self.vehicle_ends[vehicle_id]
             }
 
             index = routing.Start(vehicle_id)

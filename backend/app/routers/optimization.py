@@ -96,12 +96,32 @@ async def optimize_routes(
     depot_lon = settings.default_depot_longitude
     depot_address = settings.default_depot_address
 
-    # Build locations list: depot first, then addresses
-    locations = [(depot_lat, depot_lon)]
+    # Determine which drivers will end at home
+    drivers_ending_at_home = {}
+    for driver in drivers:
+        if request.driver_constraints and driver.id in request.driver_constraints:
+            if request.driver_constraints[driver.id].end_at_home:
+                if driver.home_latitude and driver.home_longitude:
+                    drivers_ending_at_home[driver.id] = (driver.home_latitude, driver.home_longitude)
+                else:
+                    # Driver wants to end at home but has no home address
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Driver {driver.name} has 'end at home' enabled but no home address configured"
+                    )
+
+    # Build locations list: depot first, then addresses, then home locations
+    locations = [(depot_lat, depot_lon)]  # Index 0 = depot
     address_map = {}  # Map location index to address
     for i, addr in enumerate(addresses):
         locations.append((addr.latitude, addr.longitude))
         address_map[i + 1] = addr  # +1 because depot is at index 0
+
+    # Add driver home locations (for those ending at home)
+    home_location_indices = {}  # Map driver_id -> location index
+    for driver_id, home_coords in drivers_ending_at_home.items():
+        home_location_indices[driver_id] = len(locations)
+        locations.append(home_coords)
 
     # Get distance matrix from OSRM
     try:
@@ -109,18 +129,32 @@ async def optimize_routes(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get distance matrix: {str(e)}")
 
+    # Build per-vehicle start and end indices
+    vehicle_starts = [0] * len(drivers)  # All start at depot
+    vehicle_ends = []
+    for driver in drivers:
+        if driver.id in home_location_indices:
+            vehicle_ends.append(home_location_indices[driver.id])
+        else:
+            vehicle_ends.append(0)  # Return to depot
+
     # Set up VRP solver
     solver = VRPSolver(
         distance_matrix=distance_matrix,
         duration_matrix=duration_matrix,
         num_vehicles=len(drivers),
-        depot_index=0
+        depot_index=0,
+        vehicle_starts=vehicle_starts,
+        vehicle_ends=vehicle_ends
     )
 
     # Set service times for each location
     service_times = [0]  # Depot has 0 service time
     for addr in addresses:
         service_times.append(addr.service_time_minutes or 5)
+    # Add zero service time for home locations
+    for _ in drivers_ending_at_home:
+        service_times.append(0)
     solver.set_service_times(service_times)
 
     # Set vehicle capacities (max stops per driver)
@@ -146,16 +180,39 @@ async def optimize_routes(
             max_durations.append(driver.max_route_duration_minutes if driver.max_route_duration_minutes else 120)
     solver.set_max_route_durations(max_durations)
 
-    # Set time windows if addresses have preferred times
+    # Calculate per-driver start time offsets
     base_time = datetime.combine(request.date, datetime.strptime(request.start_time, "%H:%M").time())
+    global_start_minutes = int(request.start_time.split(':')[0]) * 60 + int(request.start_time.split(':')[1])
+
+    vehicle_start_offsets = []
+    for driver in drivers:
+        driver_start_time = request.start_time  # default to global
+        if request.driver_constraints and driver.id in request.driver_constraints:
+            constraint_start = request.driver_constraints[driver.id].start_time
+            if constraint_start:
+                driver_start_time = constraint_start
+
+        # Convert start time to offset from global start
+        driver_start_minutes = int(driver_start_time.split(':')[0]) * 60 + int(driver_start_time.split(':')[1])
+        offset = driver_start_minutes - global_start_minutes
+        vehicle_start_offsets.append(max(0, offset))  # Offset should be >= 0
+
+    solver.set_vehicle_start_offsets(vehicle_start_offsets)
+
+    # Set time windows if addresses have preferred times
     # Use the maximum route duration for the depot window
     max_overall_duration = max(max_durations)
     time_windows = [(0, max_overall_duration)]  # Depot window
 
+    # Note: base_time already defined above for per-driver start time calculations
     for addr in addresses:
         start_min = parse_time(addr.preferred_time_start, base_time) if addr.preferred_time_start else 0
         end_min = parse_time(addr.preferred_time_end, base_time) if addr.preferred_time_end else max_overall_duration
         time_windows.append((start_min, end_min))
+
+    # Add time windows for home locations (no constraints)
+    for _ in drivers_ending_at_home:
+        time_windows.append((0, max_overall_duration))
 
     solver.set_time_windows(time_windows)
 
@@ -218,8 +275,13 @@ async def optimize_routes(
             route_geometry = None
 
         # Calculate start/end times
-        # Convert start_time string to minutes from midnight for proper time formatting
-        start_time_parts = request.start_time.split(':')
+        # Use driver's actual start time for formatting (may differ from global start_time)
+        driver_start_time = request.start_time
+        if request.driver_constraints and driver.id in request.driver_constraints:
+            driver_start_time = request.driver_constraints[driver.id].start_time or request.start_time
+
+        # Convert driver's start_time string to minutes from midnight for proper time formatting
+        start_time_parts = driver_start_time.split(':')
         start_offset_minutes = int(start_time_parts[0]) * 60 + int(start_time_parts[1])
 
         start_minutes = route_data['stops'][0]['time_minutes']

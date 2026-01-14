@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { driverApi } from '../lib/api';
 import type { Driver, DriverCreate } from '../types';
 
@@ -19,6 +19,27 @@ export default function DriverForm({ onSuccess, onCancel, driver }: DriverFormPr
     vehicle_type: driver?.vehicle_type ?? '',
     home_address: driver?.home_address ?? '',
   });
+
+  // Update form data when driver prop changes
+  useEffect(() => {
+    if (driver) {
+      setFormData({
+        name: driver.name,
+        email: driver.email ?? '',
+        phone: driver.phone ?? '',
+        vehicle_type: driver.vehicle_type ?? '',
+        home_address: driver.home_address ?? '',
+      });
+    } else {
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        vehicle_type: '',
+        home_address: '',
+      });
+    }
+  }, [driver]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

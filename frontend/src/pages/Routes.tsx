@@ -361,6 +361,15 @@ export default function Routes() {
                     <span className="ml-3 text-sm text-gray-700">
                       {addr.street}, {addr.city} {addr.state}
                       {addr.recipient_name && ` - ${addr.recipient_name}`}
+                      {(addr.preferred_time_start || addr.preferred_time_end) && (
+                        <span className="text-xs text-gray-500 ml-2">
+                          (Window: {addr.preferred_time_start && addr.preferred_time_end
+                            ? `${addr.preferred_time_start} - ${addr.preferred_time_end}`
+                            : addr.preferred_time_start
+                            ? `After ${addr.preferred_time_start}`
+                            : `Before ${addr.preferred_time_end}`})
+                        </span>
+                      )}
                     </span>
                   </label>
                 ))

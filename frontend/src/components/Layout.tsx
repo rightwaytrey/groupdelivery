@@ -13,7 +13,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow-sm">
-        <div className="max-w-5xl mx-auto px-8 py-2">
+        <div className="max-w-7xl mx-auto px-8 py-2">
           {/* Top row - Logo and Logout */}
           <div className="flex justify-between items-center mb-2">
             <h1 className="text-lg font-bold text-gray-900">Group Delivery</h1>
@@ -66,7 +66,7 @@ export default function Layout() {
         </div>
       </nav>
 
-      <main className="max-w-5xl mx-auto px-8 py-4">
+      <main className="max-w-7xl mx-auto px-8 py-4">
         <Outlet />
       </main>
     </div>

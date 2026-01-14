@@ -91,9 +91,9 @@ export default function Addresses() {
   };
 
   const downloadSampleCsv = () => {
-    const csv = `street,city,state,postal_code,country,recipient_name,phone,notes,service_time_minutes
-123 Main St,Springfield,IL,62701,USA,John Doe,555-1234,Leave at door,5
-456 Oak Ave,Portland,OR,97201,USA,Jane Smith,555-5678,Ring bell,10`;
+    const csv = `street,city,state,postal_code,country,recipient_name,phone,notes,service_time_minutes,preferred_time_start,preferred_time_end
+123 Main St,Springfield,IL,62701,USA,John Doe,555-1234,Leave at door,5,09:00,17:00
+456 Oak Ave,Portland,OR,97201,USA,Jane Smith,555-5678,Ring bell,10,08:00,12:00`;
 
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -190,13 +190,15 @@ export default function Addresses() {
             </p>
             <div className="bg-gray-50 rounded p-3 mb-3">
               <code className="text-xs text-gray-800">
-                street, city, state, postal_code, country, recipient_name, phone, notes, service_time_minutes
+                street, city, state, postal_code, country, recipient_name, phone, notes, service_time_minutes, preferred_time_start, preferred_time_end
               </code>
             </div>
             <p className="text-sm text-gray-600 mb-3">
               <strong>Required:</strong> street, city
               <br />
               <strong>Optional:</strong> All other fields (country defaults to USA, service_time_minutes defaults to 5)
+              <br />
+              <strong>Time windows:</strong> preferred_time_start and preferred_time_end use 24-hour format (e.g., 09:00, 17:00)
             </p>
             <button
               type="button"

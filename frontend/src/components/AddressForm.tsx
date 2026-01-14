@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { addressApi } from '../lib/api';
 import type { Address, AddressCreate } from '../types';
 
@@ -25,6 +25,39 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
     preferred_time_start: address?.preferred_time_start ?? '',
     preferred_time_end: address?.preferred_time_end ?? '',
   });
+
+  // Update form data when address prop changes
+  useEffect(() => {
+    if (address) {
+      setFormData({
+        street: address.street,
+        city: address.city,
+        state: address.state ?? '',
+        postal_code: address.postal_code ?? '',
+        country: address.country,
+        recipient_name: address.recipient_name ?? '',
+        phone: address.phone ?? '',
+        notes: address.notes ?? '',
+        service_time_minutes: address.service_time_minutes,
+        preferred_time_start: address.preferred_time_start ?? '',
+        preferred_time_end: address.preferred_time_end ?? '',
+      });
+    } else {
+      setFormData({
+        street: '',
+        city: '',
+        state: '',
+        postal_code: '',
+        country: 'USA',
+        recipient_name: '',
+        phone: '',
+        notes: '',
+        service_time_minutes: 5,
+        preferred_time_start: '',
+        preferred_time_end: '',
+      });
+    }
+  }, [address]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

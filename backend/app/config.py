@@ -38,6 +38,8 @@ class Settings(BaseSettings):
         "https://tre.hopto.org",
         "https://tre.hopto.org:9966",
         "https://tre.hopto.org:9967",
+        "http://morefood.duckdns.org",
+        "https://morefood.duckdns.org",
     ]
 
     # Default Depot Location

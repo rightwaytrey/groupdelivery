@@ -5,7 +5,7 @@ import type {
 } from '../types';
 
 // Use environment variable or default to nginx proxy path
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/delivery/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

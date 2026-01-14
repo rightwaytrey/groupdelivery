@@ -156,6 +156,10 @@ class VRPSolver:
 
         time_dimension = routing.GetDimensionOrDie('Time')
 
+        # Penalize total route duration to encourage reordering over waiting
+        # This makes the solver prefer visiting other stops instead of waiting for time windows
+        time_dimension.SetGlobalSpanCostCoefficient(100)
+
         # Set per-vehicle max route duration constraints
         for vehicle_id in range(self.num_vehicles):
             index = routing.End(vehicle_id)

@@ -9,10 +9,9 @@ export default defineConfig({
     host: '0.0.0.0',
     allowedHosts: ['tre.hopto.org', 'localhost'],
     proxy: {
-      '/delivery/api': {
+      '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/delivery\/api/, '/api'),
       },
     },
   },

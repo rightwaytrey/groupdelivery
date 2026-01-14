@@ -5,64 +5,64 @@ Usage: python create_admin.py <username> <email> <password>
 """
 
 import sys
-import asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+import sqlite3
+from datetime import datetime
 from passlib.context import CryptContext
 
 # Setup password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+db_path = "/app/data/delivery.db"
 
-async def create_admin_user(username: str, email: str, password: str):
+
+def create_admin_user(username: str, email: str, password: str):
     """Create an admin user in the database."""
 
-    # Create async engine
-    engine = create_async_engine(
-        "sqlite+aiosqlite:////app/data/delivery.db",
-        echo=False
-    )
+    try:
+        conn = sqlite3.connect(db_path, timeout=5)
+        cursor = conn.cursor()
 
-    # Create session
-    async_session = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
-
-    async with async_session() as session:
-        from app.models.user import User
-        from app.database import Base
-
-        # Create tables if they don't exist
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        # Create users table if it doesn't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(100) UNIQUE NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                hashed_password VARCHAR(255) NOT NULL,
+                full_name VARCHAR(255),
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                is_superuser BOOLEAN NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME
+            )
+        """)
 
         # Check if user already exists
-        from sqlalchemy import select
-        result = await session.execute(select(User).where(User.username == username))
-        existing_user = result.scalar_one_or_none()
-
-        if existing_user:
+        cursor.execute("SELECT username FROM users WHERE username = ?", (username,))
+        if cursor.fetchone():
             print(f"User '{username}' already exists")
+            conn.close()
             return False
 
         # Hash password
         hashed_password = pwd_context.hash(password)
+        now = datetime.utcnow().isoformat()
 
-        # Create admin user
-        admin_user = User(
-            username=username,
-            email=email,
-            hashed_password=hashed_password,
-            full_name="Administrator",
-            is_active=True,
-            is_superuser=True
-        )
+        # Insert admin user
+        cursor.execute("""
+            INSERT INTO users (username, email, hashed_password, full_name, is_active, is_superuser, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (username, email, hashed_password, "Administrator", True, True, now, now))
 
-        session.add(admin_user)
-        await session.commit()
+        conn.commit()
+        conn.close()
 
         print(f"✓ Admin user '{username}' created successfully")
         return True
+
+    except Exception as e:
+        print(f"Error creating admin user: {e}")
+        return False
 
 
 if __name__ == "__main__":
@@ -74,4 +74,5 @@ if __name__ == "__main__":
     email = sys.argv[2]
     password = sys.argv[3]
 
-    asyncio.run(create_admin_user(username, email, password))
+    success = create_admin_user(username, email, password)
+    sys.exit(0 if success else 1)

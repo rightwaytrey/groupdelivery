@@ -235,6 +235,9 @@ class VRPSolver:
                 # Add distance and time to next stop
                 route_distance += self.distance_matrix[node_index][next_node]
                 route_duration += self.duration_matrix[node_index][next_node]
+                # Add service time at current location (excludes depot)
+                if node_index != self.depot_index:
+                    route_duration += self.service_times[node_index]
 
             # Add final node (return to depot)
             node_index = manager.IndexToNode(index)
@@ -270,10 +273,19 @@ class VRPSolver:
         }
 
 
-def format_time(minutes: int) -> str:
-    """Convert minutes from start to HH:MM format."""
-    hours = minutes // 60
-    mins = minutes % 60
+def format_time(minutes: int, start_offset_minutes: int = 0) -> str:
+    """Convert minutes from start to HH:MM format.
+
+    Args:
+        minutes: Minutes from start of route
+        start_offset_minutes: Minutes from midnight when route starts (e.g., 540 for 09:00)
+
+    Returns:
+        Time in HH:MM format (e.g., "09:30")
+    """
+    total_minutes = minutes + start_offset_minutes
+    hours = total_minutes // 60
+    mins = total_minutes % 60
     return f"{hours:02d}:{mins:02d}"
 
 

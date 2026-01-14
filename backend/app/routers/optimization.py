@@ -218,10 +218,14 @@ async def optimize_routes(
             route_geometry = None
 
         # Calculate start/end times
+        # Convert start_time string to minutes from midnight for proper time formatting
+        start_time_parts = request.start_time.split(':')
+        start_offset_minutes = int(start_time_parts[0]) * 60 + int(start_time_parts[1])
+
         start_minutes = route_data['stops'][0]['time_minutes']
         end_minutes = route_data['stops'][-1]['time_minutes']
-        start_time = format_time(start_minutes)
-        end_time = format_time(end_minutes)
+        start_time = format_time(start_minutes, start_offset_minutes)
+        end_time = format_time(end_minutes, start_offset_minutes)
 
         route = Route(
             delivery_day_id=delivery_day.id,
@@ -258,8 +262,8 @@ async def optimize_routes(
                 dist_km = 0.0
                 dur_min = 0.0
 
-            arrival_time = format_time(time_minutes)
-            departure_time = format_time(time_minutes + address.service_time_minutes)
+            arrival_time = format_time(time_minutes, start_offset_minutes)
+            departure_time = format_time(time_minutes + address.service_time_minutes, start_offset_minutes)
 
             route_stop = RouteStop(
                 route_id=route.id,

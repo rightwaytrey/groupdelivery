@@ -15,10 +15,11 @@ async def check_admin_exists():
     """Check if an admin user exists in the database."""
 
     try:
-        # Create async engine
+        # Create async engine with timeout
         engine = create_async_engine(
             "sqlite+aiosqlite:////app/data/delivery.db",
-            echo=False
+            echo=False,
+            connect_args={"timeout": 5}
         )
 
         # Create session
@@ -41,6 +42,8 @@ async def check_admin_exists():
 
     except Exception as e:
         # If database or tables don't exist yet, no admin exists
+        # Print error to stderr for debugging
+        print(f"Note: Could not check admin user (this is normal on first deploy): {type(e).__name__}", file=sys.stderr)
         return False
 
 

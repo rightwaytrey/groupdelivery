@@ -81,20 +81,23 @@ The application should now be running:
 - Frontend: http://your-vps-ip
 - Backend API: http://your-vps-ip/api
 
-### 5. Initialize the Database
+### 5. Create Your Admin Account
 
-Create the default admin user:
+Create your admin user with secure credentials:
 
 ```bash
-# Access the backend container
-docker-compose exec backend python create_default_admin.py
+# Access the backend container and run the interactive setup
+docker-compose exec backend python create_admin.py
 ```
 
-**Default credentials:**
-- Username: `admin`
-- Password: `admin123`
+You'll be prompted to enter:
+- Username (minimum 3 characters)
+- Email address
+- Full name (optional)
+- Password (minimum 8 characters)
+- Password confirmation
 
-**⚠️ IMPORTANT: Change the admin password immediately after first login!**
+**Your credentials will be used immediately - no default passwords!**
 
 ### 6. Configure Domain (Optional but Recommended)
 

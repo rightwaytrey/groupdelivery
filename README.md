@@ -67,6 +67,9 @@ docker compose -f docker-compose.prod.yml down
 
 # Update and restart
 docker compose -f docker-compose.prod.yml up -d --build
+
+# Reset admin password
+docker exec groupdelivery-backend python /app/reset_admin_password.py <username> <new_password>
 ```
 
 ## Local Development Setup

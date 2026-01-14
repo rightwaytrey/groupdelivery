@@ -13,8 +13,12 @@
 
 set -e
 
-# Config file for saved settings
-CONFIG_FILE=".deploy-config"
+# Get the script directory (where deploy.sh is located)
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR"
+
+# Config file for saved settings (in the script directory)
+CONFIG_FILE="$SCRIPT_DIR/.deploy-config"
 
 # Colors for output
 RED='\033[0;31m'
@@ -214,8 +218,18 @@ print_header "Admin User Setup"
 
 # Check if admin already exists
 print_warning "Checking for existing admin user..."
-if docker exec -i groupdelivery-backend python /app/check_admin.py >/dev/null 2>&1; then
+
+# Run the check with a timeout
+set +e  # Temporarily disable exit on error
+timeout 10 docker exec groupdelivery-backend python /app/check_admin.py >/dev/null 2>&1
+CHECK_RESULT=$?
+set -e  # Re-enable exit on error
+
+if [ $CHECK_RESULT -eq 0 ]; then
     print_success "Admin user already exists - skipping admin creation"
+elif [ $CHECK_RESULT -eq 124 ]; then
+    print_error "Admin check timed out after 10 seconds"
+    exit 1
 else
     print_warning "No admin user found - creating admin user"
 

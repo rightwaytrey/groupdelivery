@@ -1,21 +1,23 @@
 import { useState, type FormEvent } from 'react';
 import { driverApi } from '../lib/api';
-import type { DriverCreate } from '../types';
+import type { Driver, DriverCreate } from '../types';
 
 interface DriverFormProps {
   onSuccess: () => void;
   onCancel: () => void;
+  driver?: Driver;
 }
 
-export default function DriverForm({ onSuccess, onCancel }: DriverFormProps) {
+export default function DriverForm({ onSuccess, onCancel, driver }: DriverFormProps) {
+  const isEditing = !!driver;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<DriverCreate>({
-    name: '',
-    email: '',
-    phone: '',
-    vehicle_type: '',
-    home_address: '',
+    name: driver?.name ?? '',
+    email: driver?.email ?? '',
+    phone: driver?.phone ?? '',
+    vehicle_type: driver?.vehicle_type ?? '',
+    home_address: driver?.home_address ?? '',
   });
 
   const handleSubmit = async (e: FormEvent) => {
@@ -24,11 +26,15 @@ export default function DriverForm({ onSuccess, onCancel }: DriverFormProps) {
     setError(null);
 
     try {
-      await driverApi.create(formData);
+      if (isEditing && driver) {
+        await driverApi.update(driver.id, formData);
+      } else {
+        await driverApi.create(formData);
+      }
       onSuccess();
     } catch (err: any) {
-      console.error('Failed to create driver:', err);
-      setError(err.response?.data?.detail || 'Failed to create driver');
+      console.error(`Failed to ${isEditing ? 'update' : 'create'} driver:`, err);
+      setError(err.response?.data?.detail || `Failed to ${isEditing ? 'update' : 'create'} driver`);
     } finally {
       setLoading(false);
     }
@@ -40,7 +46,7 @@ export default function DriverForm({ onSuccess, onCancel }: DriverFormProps) {
 
   return (
     <div className="bg-white shadow rounded-lg p-6 mb-6">
-      <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Driver</h3>
+      <h3 className="text-lg font-medium text-gray-900 mb-4">{isEditing ? 'Edit Driver' : 'Add New Driver'}</h3>
 
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
@@ -132,13 +138,13 @@ export default function DriverForm({ onSuccess, onCancel }: DriverFormProps) {
             disabled={loading}
             className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
           >
-            {loading ? 'Creating...' : 'Create Driver'}
+            {loading ? (isEditing ? 'Saving...' : 'Creating...') : (isEditing ? 'Save Changes' : 'Create Driver')}
           </button>
         </div>
       </form>
 
       <div className="mt-4 text-sm text-gray-500">
-        <p>* Required fields. Home address will be automatically geocoded if provided.</p>
+        <p>* Required fields. {isEditing ? 'Home address changes will trigger re-geocoding.' : 'Home address will be automatically geocoded if provided.'}</p>
       </div>
     </div>
   );

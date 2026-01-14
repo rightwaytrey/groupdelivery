@@ -11,6 +11,7 @@ export default function Addresses() {
   const [showCsvImport, setShowCsvImport] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
 
   useEffect(() => {
     loadAddresses();
@@ -31,7 +32,14 @@ export default function Addresses() {
 
   const handleSuccess = async () => {
     setShowForm(false);
+    setEditingAddress(null);
     await loadAddresses();
+  };
+
+  const handleEdit = (address: Address) => {
+    setEditingAddress(address);
+    setShowForm(true);
+    setShowCsvImport(false);
   };
 
   const handleDelete = async (id: number) => {
@@ -145,12 +153,17 @@ export default function Addresses() {
           <button
             type="button"
             onClick={() => {
-              setShowForm(!showForm);
-              setShowCsvImport(false);
+              if (showForm && !editingAddress) {
+                setShowForm(false);
+              } else {
+                setEditingAddress(null);
+                setShowForm(true);
+                setShowCsvImport(false);
+              }
             }}
             className="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto"
           >
-            {showForm ? 'Cancel' : 'Add Address'}
+            {showForm && !editingAddress ? 'Cancel' : 'Add Address'}
           </button>
         </div>
       </div>
@@ -229,7 +242,14 @@ export default function Addresses() {
 
       {showForm && (
         <div className="mt-6">
-          <AddressForm onSuccess={handleSuccess} onCancel={() => setShowForm(false)} />
+          <AddressForm
+            onSuccess={handleSuccess}
+            onCancel={() => {
+              setShowForm(false);
+              setEditingAddress(null);
+            }}
+            address={editingAddress ?? undefined}
+          />
         </div>
       )}
 
@@ -294,8 +314,14 @@ export default function Addresses() {
                         </td>
                         <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                           <button
+                            onClick={() => handleEdit(address)}
+                            className="text-indigo-600 hover:text-indigo-900"
+                          >
+                            Edit
+                          </button>
+                          <button
                             onClick={() => handleDelete(address.id)}
-                            className="text-red-600 hover:text-red-900"
+                            className="text-red-600 hover:text-red-900 ml-4"
                           >
                             Delete
                           </button>

@@ -8,6 +8,7 @@ export default function Drivers() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
 
   useEffect(() => {
     loadDrivers();
@@ -28,7 +29,13 @@ export default function Drivers() {
 
   const handleSuccess = async () => {
     setShowForm(false);
+    setEditingDriver(null);
     await loadDrivers();
+  };
+
+  const handleEdit = (driver: Driver) => {
+    setEditingDriver(driver);
+    setShowForm(true);
   };
 
   const handleDelete = async (id: number) => {
@@ -90,10 +97,17 @@ export default function Drivers() {
           )}
           <button
             type="button"
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              if (showForm && !editingDriver) {
+                setShowForm(false);
+              } else {
+                setEditingDriver(null);
+                setShowForm(true);
+              }
+            }}
             className="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto"
           >
-            {showForm ? 'Cancel' : 'Add Driver'}
+            {showForm && !editingDriver ? 'Cancel' : 'Add Driver'}
           </button>
         </div>
       </div>
@@ -106,7 +120,14 @@ export default function Drivers() {
 
       {showForm && (
         <div className="mt-6">
-          <DriverForm onSuccess={handleSuccess} onCancel={() => setShowForm(false)} />
+          <DriverForm
+            onSuccess={handleSuccess}
+            onCancel={() => {
+              setShowForm(false);
+              setEditingDriver(null);
+            }}
+            driver={editingDriver ?? undefined}
+          />
         </div>
       )}
 
@@ -166,6 +187,12 @@ export default function Drivers() {
                           </span>
                         </td>
                         <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                          <button
+                            onClick={() => handleEdit(driver)}
+                            className="text-indigo-600 hover:text-indigo-900"
+                          >
+                            Edit
+                          </button>
                           <button
                             onClick={() => handleDelete(driver.id)}
                             className="text-red-600 hover:text-red-900 ml-4"

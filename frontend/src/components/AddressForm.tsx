@@ -1,25 +1,27 @@
 import { useState, type FormEvent } from 'react';
 import { addressApi } from '../lib/api';
-import type { AddressCreate } from '../types';
+import type { Address, AddressCreate } from '../types';
 
 interface AddressFormProps {
   onSuccess: () => void;
   onCancel: () => void;
+  address?: Address;
 }
 
-export default function AddressForm({ onSuccess, onCancel }: AddressFormProps) {
+export default function AddressForm({ onSuccess, onCancel, address }: AddressFormProps) {
+  const isEditing = !!address;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<AddressCreate>({
-    street: '',
-    city: '',
-    state: '',
-    postal_code: '',
-    country: 'USA',
-    recipient_name: '',
-    phone: '',
-    notes: '',
-    service_time_minutes: 5,
+    street: address?.street ?? '',
+    city: address?.city ?? '',
+    state: address?.state ?? '',
+    postal_code: address?.postal_code ?? '',
+    country: address?.country ?? 'USA',
+    recipient_name: address?.recipient_name ?? '',
+    phone: address?.phone ?? '',
+    notes: address?.notes ?? '',
+    service_time_minutes: address?.service_time_minutes ?? 5,
   });
 
   const handleSubmit = async (e: FormEvent) => {
@@ -28,11 +30,15 @@ export default function AddressForm({ onSuccess, onCancel }: AddressFormProps) {
     setError(null);
 
     try {
-      await addressApi.create(formData);
+      if (isEditing && address) {
+        await addressApi.update(address.id, formData);
+      } else {
+        await addressApi.create(formData);
+      }
       onSuccess();
     } catch (err: any) {
-      console.error('Failed to create address:', err);
-      setError(err.response?.data?.detail || 'Failed to create address');
+      console.error(`Failed to ${isEditing ? 'update' : 'create'} address:`, err);
+      setError(err.response?.data?.detail || `Failed to ${isEditing ? 'update' : 'create'} address`);
     } finally {
       setLoading(false);
     }
@@ -44,7 +50,7 @@ export default function AddressForm({ onSuccess, onCancel }: AddressFormProps) {
 
   return (
     <div className="bg-white shadow rounded-lg p-6 mb-6">
-      <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Address</h3>
+      <h3 className="text-lg font-medium text-gray-900 mb-4">{isEditing ? 'Edit Address' : 'Add New Address'}</h3>
 
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
@@ -190,13 +196,13 @@ export default function AddressForm({ onSuccess, onCancel }: AddressFormProps) {
             disabled={loading}
             className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
           >
-            {loading ? 'Creating...' : 'Create Address'}
+            {loading ? (isEditing ? 'Saving...' : 'Creating...') : (isEditing ? 'Save Changes' : 'Create Address')}
           </button>
         </div>
       </form>
 
       <div className="mt-4 text-sm text-gray-500">
-        <p>* Required fields. Address will be automatically geocoded.</p>
+        <p>* Required fields. {isEditing ? 'Address changes will trigger re-geocoding.' : 'Address will be automatically geocoded.'}</p>
       </div>
     </div>
   );

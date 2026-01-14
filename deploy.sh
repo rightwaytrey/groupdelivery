@@ -214,7 +214,7 @@ print_header "Admin User Setup"
 
 # Check if admin already exists
 print_warning "Checking for existing admin user..."
-if docker exec groupdelivery-backend python /app/check_admin.py; then
+if docker exec -i groupdelivery-backend python /app/check_admin.py >/dev/null 2>&1; then
     print_success "Admin user already exists - skipping admin creation"
 else
     print_warning "No admin user found - creating admin user"

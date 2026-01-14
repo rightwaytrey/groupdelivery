@@ -40,10 +40,8 @@ async def check_admin_exists():
                 return True
             return False
 
-    except Exception as e:
+    except Exception:
         # If database or tables don't exist yet, no admin exists
-        # Print error to stderr for debugging
-        print(f"Note: Could not check admin user (this is normal on first deploy): {type(e).__name__}", file=sys.stderr)
         return False
 
 

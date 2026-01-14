@@ -65,10 +65,22 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
     setError(null);
 
     try {
+      // Convert empty strings to undefined for optional fields
+      const submitData = {
+        ...formData,
+        state: formData.state || undefined,
+        postal_code: formData.postal_code || undefined,
+        recipient_name: formData.recipient_name || undefined,
+        phone: formData.phone || undefined,
+        notes: formData.notes || undefined,
+        preferred_time_start: formData.preferred_time_start || undefined,
+        preferred_time_end: formData.preferred_time_end || undefined,
+      };
+
       if (isEditing && address) {
-        await addressApi.update(address.id, formData);
+        await addressApi.update(address.id, submitData);
       } else {
-        await addressApi.create(formData);
+        await addressApi.create(submitData);
       }
       onSuccess();
     } catch (err: any) {

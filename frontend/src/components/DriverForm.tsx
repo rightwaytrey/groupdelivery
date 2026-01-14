@@ -47,10 +47,19 @@ export default function DriverForm({ onSuccess, onCancel, driver }: DriverFormPr
     setError(null);
 
     try {
+      // Convert empty strings to undefined for optional fields
+      const submitData = {
+        ...formData,
+        email: formData.email || undefined,
+        phone: formData.phone || undefined,
+        vehicle_type: formData.vehicle_type || undefined,
+        home_address: formData.home_address || undefined,
+      };
+
       if (isEditing && driver) {
-        await driverApi.update(driver.id, formData);
+        await driverApi.update(driver.id, submitData);
       } else {
-        await driverApi.create(formData);
+        await driverApi.create(submitData);
       }
       onSuccess();
     } catch (err: any) {

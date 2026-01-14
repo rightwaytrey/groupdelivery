@@ -181,21 +181,34 @@ async def optimize_routes(
     solver.set_max_route_durations(max_durations)
 
     # Calculate per-driver start time offsets
-    base_time = datetime.combine(request.date, datetime.strptime(request.start_time, "%H:%M").time())
-    global_start_minutes = int(request.start_time.split(':')[0]) * 60 + int(request.start_time.split(':')[1])
-
-    vehicle_start_offsets = []
+    # Collect all driver start times
+    driver_start_times = []
     for driver in drivers:
         driver_start_time = request.start_time  # default to global
         if request.driver_constraints and driver.id in request.driver_constraints:
             constraint_start = request.driver_constraints[driver.id].start_time
             if constraint_start:
                 driver_start_time = constraint_start
+        driver_start_times.append(driver_start_time)
 
-        # Convert start time to offset from global start
-        driver_start_minutes = int(driver_start_time.split(':')[0]) * 60 + int(driver_start_time.split(':')[1])
-        offset = driver_start_minutes - global_start_minutes
-        vehicle_start_offsets.append(max(0, offset))  # Offset should be >= 0
+    # Helper function to convert time string to minutes from midnight
+    def time_to_minutes(t: str) -> int:
+        parts = t.split(':')
+        return int(parts[0]) * 60 + int(parts[1])
+
+    # Find earliest start time to use as base for all calculations
+    # This ensures time windows and vehicle offsets are calculated consistently
+    earliest_start = min(driver_start_times, key=time_to_minutes)
+    earliest_start_minutes = time_to_minutes(earliest_start)
+
+    # Use earliest start as base_time for time window calculations
+    base_time = datetime.combine(request.date, datetime.strptime(earliest_start, "%H:%M").time())
+
+    # Calculate vehicle offsets relative to earliest start (all >= 0)
+    vehicle_start_offsets = []
+    for driver_start_time in driver_start_times:
+        offset = time_to_minutes(driver_start_time) - earliest_start_minutes
+        vehicle_start_offsets.append(offset)
 
     solver.set_vehicle_start_offsets(vehicle_start_offsets)
 
@@ -275,19 +288,14 @@ async def optimize_routes(
             route_geometry = None
 
         # Calculate start/end times
-        # Use driver's actual start time for formatting (may differ from global start_time)
-        driver_start_time = request.start_time
-        if request.driver_constraints and driver.id in request.driver_constraints:
-            driver_start_time = request.driver_constraints[driver.id].start_time or request.start_time
-
-        # Convert driver's start_time string to minutes from midnight for proper time formatting
-        start_time_parts = driver_start_time.split(':')
-        start_offset_minutes = int(start_time_parts[0]) * 60 + int(start_time_parts[1])
+        # Use earliest start time as base for formatting (cumulative time is relative to earliest start)
+        # Convert earliest_start to minutes from midnight for proper time formatting
+        earliest_start_offset = time_to_minutes(earliest_start)
 
         start_minutes = route_data['stops'][0]['time_minutes']
         end_minutes = route_data['stops'][-1]['time_minutes']
-        start_time = format_time(start_minutes, start_offset_minutes)
-        end_time = format_time(end_minutes, start_offset_minutes)
+        start_time = format_time(start_minutes, earliest_start_offset)
+        end_time = format_time(end_minutes, earliest_start_offset)
 
         route = Route(
             delivery_day_id=delivery_day.id,
@@ -324,8 +332,8 @@ async def optimize_routes(
                 dist_km = 0.0
                 dur_min = 0.0
 
-            arrival_time = format_time(time_minutes, start_offset_minutes)
-            departure_time = format_time(time_minutes + address.service_time_minutes, start_offset_minutes)
+            arrival_time = format_time(time_minutes, earliest_start_offset)
+            departure_time = format_time(time_minutes + address.service_time_minutes, earliest_start_offset)
 
             route_stop = RouteStop(
                 route_id=route.id,

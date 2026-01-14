@@ -20,8 +20,56 @@ A web application for volunteer-based delivery route optimization using the Vehi
 - **Geocoding**: Nominatim (OpenStreetMap)
 - **Routing**: OSRM
 - **Map**: Leaflet + OpenStreetMap tiles
+- **Deployment**: Docker + Docker Compose + Caddy (automatic HTTPS)
 
-## Setup
+## Quick Deploy to Linux VPS
+
+Deploy the entire application with automatic HTTPS in one command:
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd morevpsdelivery
+
+# Run the deployment script
+sudo ./deploy.sh
+```
+
+The script will:
+1. Install Docker automatically if not present
+2. Prompt for your domain name
+3. Prompt for admin username, email, and password
+4. Generate secure configuration
+5. Deploy the application with automatic SSL via Caddy
+6. Create your admin user
+
+**Prerequisites:**
+- Fresh Ubuntu/Debian Linux VPS
+- Root or sudo access
+- Domain name pointed to your server's IP address
+
+**After deployment:**
+- Access your app at `https://yourdomain.com`
+- API docs at `https://yourdomain.com/api/docs`
+- Login with your admin credentials
+
+### Managing Your Deployment
+
+```bash
+# View logs
+docker compose -f docker-compose.prod.yml logs -f
+
+# Restart services
+docker compose -f docker-compose.prod.yml restart
+
+# Stop services
+docker compose -f docker-compose.prod.yml down
+
+# Update and restart
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+## Local Development Setup
 
 ### Backend
 
@@ -39,19 +87,12 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### Access URLs
-
-**Production (via nginx reverse proxy):**
-- API: `https://tre.hopto.org:9966/delivery/api/`
-- API Docs: `https://tre.hopto.org:9966/delivery/api/docs` (coming soon)
-- Addresses: `https://tre.hopto.org:9966/delivery/api/addresses`
-- Drivers: `https://tre.hopto.org:9966/delivery/api/drivers`
-
-**Local Development:**
-- API: `http://localhost:8000`
+**Local Development URLs:**
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:8000`
 - API documentation: `http://localhost:8000/docs`
 
-### Frontend
+Start the frontend:
 
 ```bash
 cd frontend
@@ -131,13 +172,13 @@ The CSV file should have the following columns:
 - Query available drivers for specific dates
 - Bulk availability creation
 
-**Phase 3: Reverse Proxy Setup** ✅ COMPLETE
-- nginx configuration on port 9966
-- Path-based routing: `/delivery/api/*`
-- SSL/HTTPS enabled
-- CORS headers configured
+**Phase 3: Deployment Simplified** ✅ COMPLETE
+- One-command deployment script
+- Automatic SSL with Caddy
+- Docker Compose production setup
+- Admin user creation
 
-**Phase 4-6**: Coming soon
+**Phase 4-6**: In Progress
 - Route optimization (OR-Tools + OSRM)
 - React frontend with map
 - Full UI with route visualization

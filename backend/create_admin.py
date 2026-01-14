@@ -1,83 +1,77 @@
 #!/usr/bin/env python3
 """
-Create an admin user for the Group Delivery Optimizer application.
-Run this script to create the first user account.
+Create initial admin user for Group Delivery app
+Usage: python create_admin.py <username> <email> <password>
 """
-import asyncio
+
 import sys
-import getpass
-from sqlalchemy import select
-from app.database import AsyncSessionLocal
-from app.models.user import User
-from app.services.auth import get_password_hash
+import asyncio
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from passlib.context import CryptContext
+
+# Setup password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-async def create_admin_user():
-    print("=" * 60)
-    print("Create Admin User for Group Delivery Optimizer")
-    print("=" * 60)
-    print()
+async def create_admin_user(username: str, email: str, password: str):
+    """Create an admin user in the database."""
 
-    # Get user input
-    print("Enter details for the admin user:")
-    username = input("Username: ").strip()
-    if not username or len(username) < 3:
-        print("Error: Username must be at least 3 characters")
-        sys.exit(1)
+    # Create async engine
+    engine = create_async_engine(
+        "sqlite+aiosqlite:////app/data/delivery.db",
+        echo=False
+    )
 
-    email = input("Email: ").strip()
-    if not email or "@" not in email:
-        print("Error: Invalid email address")
-        sys.exit(1)
+    # Create session
+    async_session = sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
 
-    full_name = input("Full Name (optional): ").strip() or None
+    async with async_session() as session:
+        from app.models.user import User
+        from app.database import Base
 
-    password = getpass.getpass("Password (min 8 characters): ")
-    if len(password) < 8:
-        print("Error: Password must be at least 8 characters")
-        sys.exit(1)
+        # Create tables if they don't exist
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
-    password_confirm = getpass.getpass("Confirm Password: ")
-    if password != password_confirm:
-        print("Error: Passwords do not match")
-        sys.exit(1)
+        # Check if user already exists
+        from sqlalchemy import select
+        result = await session.execute(select(User).where(User.username == username))
+        existing_user = result.scalar_one_or_none()
 
-    # Create user in database
-    async with AsyncSessionLocal() as db:
-        # Check if username exists
-        result = await db.execute(select(User).where(User.username == username))
-        if result.scalar_one_or_none():
-            print(f"\nError: Username '{username}' already exists")
-            sys.exit(1)
+        if existing_user:
+            print(f"User '{username}' already exists")
+            return False
 
-        # Check if email exists
-        result = await db.execute(select(User).where(User.email == email))
-        if result.scalar_one_or_none():
-            print(f"\nError: Email '{email}' already registered")
-            sys.exit(1)
+        # Hash password
+        hashed_password = pwd_context.hash(password)
 
-        # Create user
-        hashed_password = get_password_hash(password)
-        new_user = User(
+        # Create admin user
+        admin_user = User(
             username=username,
             email=email,
-            full_name=full_name,
             hashed_password=hashed_password,
+            full_name="Administrator",
             is_active=True,
-            is_superuser=True  # First user is always superuser
+            is_superuser=True
         )
 
-        db.add(new_user)
-        await db.commit()
+        session.add(admin_user)
+        await session.commit()
 
-    print("\n" + "=" * 60)
-    print("✓ Admin user created successfully!")
-    print("=" * 60)
-    print(f"Username: {username}")
-    print(f"Email: {email}")
-    print("\nYou can now log in to the application with these credentials.")
-    print("=" * 60)
+        print(f"✓ Admin user '{username}' created successfully")
+        return True
 
 
 if __name__ == "__main__":
-    asyncio.run(create_admin_user())
+    if len(sys.argv) != 4:
+        print("Usage: python create_admin.py <username> <email> <password>")
+        sys.exit(1)
+
+    username = sys.argv[1]
+    email = sys.argv[2]
+    password = sys.argv[3]
+
+    asyncio.run(create_admin_user(username, email, password))

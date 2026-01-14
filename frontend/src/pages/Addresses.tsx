@@ -270,6 +270,9 @@ export default function Addresses() {
                       Phone
                     </th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                      Delivery Window
+                    </th>
+                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                       Status
                     </th>
                     <th className="relative py-3.5 pl-3 pr-4 sm:pr-6">
@@ -280,7 +283,7 @@ export default function Addresses() {
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {addresses.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-3 py-4 text-sm text-gray-500 text-center">
+                      <td colSpan={6} className="px-3 py-4 text-sm text-gray-500 text-center">
                         No addresses found. Add your first address to get started.
                       </td>
                     </tr>
@@ -298,6 +301,15 @@ export default function Addresses() {
                         </td>
                         <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                           {address.phone || '-'}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                          {address.preferred_time_start && address.preferred_time_end
+                            ? `${address.preferred_time_start} - ${address.preferred_time_end}`
+                            : address.preferred_time_start
+                            ? `After ${address.preferred_time_start}`
+                            : address.preferred_time_end
+                            ? `Before ${address.preferred_time_end}`
+                            : 'Any time'}
                         </td>
                         <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                           <span

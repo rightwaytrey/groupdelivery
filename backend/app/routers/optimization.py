@@ -153,13 +153,9 @@ async def optimize_routes(
     time_windows = [(0, max_overall_duration)]  # Depot window
 
     for addr in addresses:
-        if addr.preferred_time_start and addr.preferred_time_end:
-            start_min = parse_time(addr.preferred_time_start, base_time)
-            end_min = parse_time(addr.preferred_time_end, base_time)
-            time_windows.append((start_min, end_min))
-        else:
-            # Default: anytime within max overall duration
-            time_windows.append((0, max_overall_duration))
+        start_min = parse_time(addr.preferred_time_start, base_time) if addr.preferred_time_start else 0
+        end_min = parse_time(addr.preferred_time_end, base_time) if addr.preferred_time_end else max_overall_duration
+        time_windows.append((start_min, end_min))
 
     solver.set_time_windows(time_windows)
 

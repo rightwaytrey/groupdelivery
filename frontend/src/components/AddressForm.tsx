@@ -22,6 +22,8 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
     phone: address?.phone ?? '',
     notes: address?.notes ?? '',
     service_time_minutes: address?.service_time_minutes ?? 5,
+    preferred_time_start: address?.preferred_time_start ?? '',
+    preferred_time_end: address?.preferred_time_end ?? '',
   });
 
   const handleSubmit = async (e: FormEvent) => {
@@ -164,6 +166,32 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
               max="60"
               value={formData.service_time_minutes}
               onChange={(e) => handleChange('service_time_minutes', parseInt(e.target.value))}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="preferred_time_start" className="block text-sm font-medium text-gray-700">
+              No Deliveries Before:
+            </label>
+            <input
+              type="time"
+              id="preferred_time_start"
+              value={formData.preferred_time_start}
+              onChange={(e) => handleChange('preferred_time_start', e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="preferred_time_end" className="block text-sm font-medium text-gray-700">
+              No Deliveries After:
+            </label>
+            <input
+              type="time"
+              id="preferred_time_end"
+              value={formData.preferred_time_end}
+              onChange={(e) => handleChange('preferred_time_end', e.target.value)}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
             />
           </div>

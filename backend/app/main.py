@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from app.config import settings
 from app.database import init_db
-from app.routers import addresses, drivers, optimization, auth
+from app.routers import addresses, drivers, optimization, auth, geocoding
 import logging
 import traceback
 
@@ -76,6 +76,7 @@ app.include_router(auth.router)  # Auth endpoints (no protection needed)
 app.include_router(addresses.router)
 app.include_router(drivers.router)
 app.include_router(optimization.router)
+app.include_router(geocoding.router)
 
 
 @app.get("/")

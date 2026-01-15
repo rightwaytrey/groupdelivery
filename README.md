@@ -5,7 +5,7 @@ A web application for volunteer-based delivery route optimization using the Vehi
 ## Features
 
 - Address management with automatic geocoding
-- CSV bulk import for addresses
+- CSV bulk import for addresses and drivers
 - Volunteer driver management with availability tracking
 - Route optimization using OR-Tools
 - Interactive map visualization with Leaflet
@@ -84,6 +84,64 @@ sudo ./reset_password.sh
 
 The script will prompt you for the username and new password (with confirmation).
 
+## Production Server Access
+
+### Server Information
+
+- **Server**: morefood.duckdns.org (172.236.114.77)
+- **SSH Host**: `more` (configured in `~/.ssh/config`)
+- **Project Directory**: `/home/rwt/groupdelivery`
+- **User**: `rwt`
+
+### SSH Configuration
+
+Add to `~/.ssh/config`:
+```ssh-config
+Host more
+    Hostname 172.236.114.77
+    User rwt
+```
+
+### Update Production Server
+
+After pushing changes to GitHub:
+
+```bash
+# Pull changes and rebuild on server
+ssh more "cd /home/rwt/groupdelivery && git pull origin master && docker compose -f docker-compose.prod.yml up -d --build"
+
+# Check logs after deployment
+ssh more "cd /home/rwt/groupdelivery && docker compose -f docker-compose.prod.yml logs backend --tail 50"
+```
+
+### Quick Production Commands
+
+```bash
+# Check container status
+ssh more "docker ps --format 'table {{.Names}}\t{{.Status}}'"
+
+# View recent logs
+ssh more "cd /home/rwt/groupdelivery && docker compose -f docker-compose.prod.yml logs backend --tail 100"
+
+# Restart services
+ssh more "cd /home/rwt/groupdelivery && docker compose -f docker-compose.prod.yml restart backend"
+
+# Test API health
+ssh more "curl -s http://localhost:8000/api/health"
+```
+
+### Full Debugging Documentation
+
+For detailed debugging workflows and SSH-based troubleshooting, see:
+**[docs/DEBUGGING-WITH-CLAUDE.md](docs/DEBUGGING-WITH-CLAUDE.md)**
+
+This document includes:
+- Direct server access patterns
+- Log analysis techniques
+- Database query examples
+- Deployment verification steps
+- Troubleshooting common issues
+
 ## Local Development Setup
 
 ### Backend
@@ -154,7 +212,19 @@ groupdelivery/
 - `POST /api/addresses/import` - Import from CSV
 - `POST /api/addresses/geocode/{id}` - Re-geocode address
 
+### Drivers
+
+- `POST /api/drivers` - Create driver
+- `GET /api/drivers` - List drivers
+- `GET /api/drivers/{id}` - Get driver with availability
+- `PUT /api/drivers/{id}` - Update driver
+- `DELETE /api/drivers/{id}` - Delete driver
+- `POST /api/drivers/import` - Import from CSV
+- `GET /api/drivers/available` - Get available drivers for date
+
 ## CSV Import Format
+
+### Address CSV Import
 
 The CSV file should have the following columns:
 
@@ -173,6 +243,21 @@ The CSV file should have the following columns:
 - `preferred_time_start` - Preferred start time (HH:MM)
 - `preferred_time_end` - Preferred end time (HH:MM)
 
+### Driver CSV Import
+
+The CSV file should have the following columns:
+
+**Required:**
+- `name` - Driver name
+
+**Optional:**
+- `email` - Email address
+- `phone` - Phone number
+- `vehicle_type` - Vehicle type (e.g., sedan, suv, van)
+- `max_stops` - Maximum stops per route (default: 15)
+- `max_route_duration_minutes` - Maximum route duration (default: 240)
+- `home_address` - Home address (will be geocoded for "end at home" feature)
+
 ## Development Status
 
 **Phase 1: Backend Foundation** ✅ COMPLETE
@@ -186,6 +271,7 @@ The CSV file should have the following columns:
 - Availability tracking by date/time
 - Query available drivers for specific dates
 - Bulk availability creation
+- CSV bulk import for drivers
 
 **Phase 3: Deployment Simplified** ✅ COMPLETE
 - One-command deployment script

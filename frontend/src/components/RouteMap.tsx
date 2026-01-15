@@ -99,7 +99,7 @@ function FitBounds({
   return null;
 }
 
-export default function RouteMap({ routes, addresses, drivers, height = '600px' }: RouteMapProps) {
+export default function RouteMap({ routes, addresses, drivers, height = '600px', showDriverHomes, depotLocation }: RouteMapProps) {
   const [center] = useState<[number, number]>([37.7749, -122.4194]); // San Francisco default
   const [addressMap, setAddressMap] = useState<Map<number, Address>>(new Map());
   const [driverMap, setDriverMap] = useState<Map<number, Driver>>(new Map());

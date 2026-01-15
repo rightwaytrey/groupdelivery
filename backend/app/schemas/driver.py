@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, date
 
 
@@ -86,6 +86,17 @@ class DriverWithAvailability(DriverResponse):
     """Driver with their availability slots"""
 
     availability_slots: list[AvailabilityResponse] = []
+
+
+class DriverBulkImport(BaseModel):
+    """Schema for bulk driver import response"""
+
+    total: int
+    successful: int
+    failed: int
+    errors: List[str]
+    created_ids: List[int]
+    geocoding_warnings: List[str] = []
 
 
 class BulkAvailabilityCreate(BaseModel):

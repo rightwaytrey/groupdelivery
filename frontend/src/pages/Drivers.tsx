@@ -8,6 +8,9 @@ export default function Drivers() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showCsvImport, setShowCsvImport] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
 
   useEffect(() => {
@@ -36,6 +39,7 @@ export default function Drivers() {
   const handleEdit = (driver: Driver) => {
     setEditingDriver(driver);
     setShowForm(true);
+    setShowCsvImport(false);
   };
 
   const handleDelete = async (id: number) => {
@@ -60,6 +64,51 @@ export default function Drivers() {
       console.error('Failed to delete all drivers:', err);
       alert('Failed to delete all drivers');
     }
+  };
+
+  const handleCsvUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setError(null);
+    setUploadSuccess(null);
+
+    try {
+      const result = await driverApi.importCsv(file);
+      let successMessage = `Successfully imported ${result.successful} drivers.`;
+      if (result.failed > 0) {
+        successMessage += ` ${result.failed} failed.`;
+      }
+      if (result.geocoding_warnings.length > 0) {
+        successMessage += ` ${result.geocoding_warnings.length} geocoding warnings.`;
+      }
+      setUploadSuccess(successMessage);
+      setShowCsvImport(false);
+      await loadDrivers();
+
+      // Reset file input
+      event.target.value = '';
+    } catch (err: any) {
+      console.error('Failed to upload CSV:', err);
+      setError(err.response?.data?.detail || 'Failed to upload CSV file');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const downloadSampleCsv = () => {
+    const csv = `name,email,phone,vehicle_type,max_stops,max_route_duration_minutes,home_address
+John Doe,john@example.com,555-1234,sedan,15,240,123 Main St Springfield IL 62701
+Jane Smith,jane@example.com,555-5678,suv,20,300,456 Oak Ave Portland OR 97201`;
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sample_drivers.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   if (loading) {
@@ -98,11 +147,25 @@ export default function Drivers() {
           <button
             type="button"
             onClick={() => {
+              setShowCsvImport(!showCsvImport);
+              setShowForm(false);
+            }}
+            className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+          >
+            <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            {showCsvImport ? 'Cancel' : 'Import CSV'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
               if (showForm && !editingDriver) {
                 setShowForm(false);
               } else {
                 setEditingDriver(null);
                 setShowForm(true);
+                setShowCsvImport(false);
               }
             }}
             className="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto"
@@ -115,6 +178,74 @@ export default function Drivers() {
       {error && (
         <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
           {error}
+        </div>
+      )}
+
+      {uploadSuccess && (
+        <div className="mt-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+          {uploadSuccess}
+        </div>
+      )}
+
+      {showCsvImport && (
+        <div className="mt-6 bg-white shadow rounded-lg p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Import Drivers from CSV</h3>
+
+          <div className="mb-4">
+            <p className="text-sm text-gray-600 mb-2">
+              Upload a CSV file with the following columns:
+            </p>
+            <div className="bg-gray-50 rounded p-3 mb-3">
+              <code className="text-xs text-gray-800">
+                name, email, phone, vehicle_type, max_stops, max_route_duration_minutes, home_address
+              </code>
+            </div>
+            <p className="text-sm text-gray-600 mb-3">
+              <strong>Required:</strong> name
+              <br />
+              <strong>Optional:</strong> email, phone, vehicle_type, max_stops (default: 15), max_route_duration_minutes (default: 240), home_address
+              <br />
+              <strong>Note:</strong> Home addresses will be geocoded automatically
+            </p>
+            <button
+              type="button"
+              onClick={downloadSampleCsv}
+              className="text-sm text-indigo-600 hover:text-indigo-500 underline"
+            >
+              Download sample CSV template
+            </button>
+          </div>
+
+          <div className="mt-4">
+            <label className="block">
+              <span className="sr-only">Choose CSV file</span>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleCsvUpload}
+                disabled={uploading}
+                className="block w-full text-sm text-gray-500
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded-md file:border-0
+                  file:text-sm file:font-semibold
+                  file:bg-indigo-50 file:text-indigo-700
+                  hover:file:bg-indigo-100
+                  disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+            </label>
+            {uploading && (
+              <p className="mt-2 text-sm text-gray-500">
+                Uploading and processing drivers...
+              </p>
+            )}
+          </div>
+
+          <div className="mt-4 text-sm text-gray-500">
+            <p>
+              <strong>Note:</strong> Drivers will be created with their information.
+              Home addresses will be geocoded for the "end at home" feature.
+            </p>
+          </div>
         </div>
       )}
 

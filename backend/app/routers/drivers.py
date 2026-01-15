@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from typing import Optional
@@ -11,6 +11,7 @@ from app.schemas.driver import (
     DriverUpdate,
     DriverResponse,
     DriverWithAvailability,
+    DriverBulkImport,
     AvailabilityCreate,
     AvailabilityUpdate,
     AvailabilityResponse,
@@ -18,6 +19,7 @@ from app.schemas.driver import (
     AvailableDriverResponse,
 )
 from app.services.geocoding import geocoding_service
+from app.services.csv_import import driver_csv_import_service
 from app.services.auth import get_current_active_user
 
 router = APIRouter(prefix="/api/drivers", tags=["drivers"])
@@ -256,6 +258,83 @@ async def delete_all_drivers(
     await db.commit()
 
     return None
+
+
+@router.post("/import", response_model=DriverBulkImport)
+async def import_drivers_csv(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Import drivers from CSV file"""
+
+    # Validate file type
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="File must be a CSV")
+
+    try:
+        # Parse CSV
+        valid_rows, parse_errors = await driver_csv_import_service.parse_csv(file)
+
+        # Create drivers from valid rows
+        created_ids = []
+        driver_errors = []
+        geocoding_warnings = []
+
+        for row in valid_rows:
+            row_num = row.pop("_row_number")
+
+            try:
+                # Geocode home address if provided
+                home_lat, home_lng = None, None
+                if row.get("home_address"):
+                    lat, lng, status = await geocoding_service.geocode_address(
+                        street=row["home_address"],
+                        city="",  # Address should be complete
+                        country="USA",
+                    )
+                    if status == "success":
+                        home_lat, home_lng = lat, lng
+                    else:
+                        geocoding_warnings.append(
+                            f"Row {row_num} ({row['name']}): Could not geocode home address"
+                        )
+
+                # Create driver
+                db_driver = Driver(
+                    name=row["name"],
+                    email=row.get("email"),
+                    phone=row.get("phone"),
+                    vehicle_type=row.get("vehicle_type"),
+                    max_stops=row.get("max_stops", 15),
+                    max_route_duration_minutes=row.get("max_route_duration_minutes", 240),
+                    home_address=row.get("home_address"),
+                    home_latitude=home_lat,
+                    home_longitude=home_lng,
+                )
+                db.add(db_driver)
+                await db.flush()
+                created_ids.append(db_driver.id)
+
+            except Exception as e:
+                driver_errors.append(f"Row {row_num}: {str(e)}")
+
+        await db.commit()
+
+        # Combine all errors
+        all_errors = [f"Row {e['row']}: {e['error']}" for e in parse_errors] + driver_errors
+
+        return DriverBulkImport(
+            total=len(valid_rows) + len(parse_errors),
+            successful=len(created_ids),
+            failed=len(all_errors),
+            errors=all_errors,
+            created_ids=created_ids,
+            geocoding_warnings=geocoding_warnings,
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # Availability endpoints

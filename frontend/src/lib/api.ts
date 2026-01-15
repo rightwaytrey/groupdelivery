@@ -111,6 +111,17 @@ export const driverApi = {
     });
     return response.data;
   },
+
+  importCsv: async (file: File): Promise<any> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/drivers/import', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
 };
 
 // Optimization API

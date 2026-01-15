@@ -78,6 +78,16 @@ class DriverConstraints(BaseModel):
     end_at_home: Optional[bool] = Field(default=False, description="End route at driver's home instead of depot")
 
 
+# Dropped address diagnostics
+class DroppedAddressDetail(BaseModel):
+    address_id: int
+    recipient_name: str
+    street: str
+    reason: str
+    time_window: str
+    service_time_minutes: int
+
+
 # Optimization request/response schemas
 class OptimizationRequest(BaseModel):
     date: date
@@ -104,6 +114,7 @@ class OptimizationResult(BaseModel):
     total_duration_minutes: float
     routes: List[Route]
     dropped_addresses: List[int] = Field(default=[], description="Addresses that couldn't be assigned")
+    dropped_address_details: List[DroppedAddressDetail] = Field(default=[], description="Detailed reasons for dropped addresses")
     message: Optional[str] = None
 
 

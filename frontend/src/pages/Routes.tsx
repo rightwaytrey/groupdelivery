@@ -13,6 +13,7 @@ export default function Routes() {
   const [optimizing, setOptimizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [lastOptimizationResult, setLastOptimizationResult] = useState<OptimizationResult | null>(null);
 
   // Form state
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -127,9 +128,12 @@ export default function Routes() {
       setSelectedDeliveryDayId(result.delivery_day_id);
       setRoutes(result.routes);
       setShowForm(false);
+      setLastOptimizationResult(result);
 
       if (result.dropped_addresses.length > 0) {
         setError(`Optimization complete! ${result.dropped_addresses.length} addresses could not be assigned.`);
+      } else {
+        setLastOptimizationResult(null);
       }
     } catch (err: any) {
       console.error('Optimization failed:', err);
@@ -294,6 +298,33 @@ export default function Routes() {
       {error && (
         <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
           {error}
+        </div>
+      )}
+
+      {/* Dropped Address Details */}
+      {lastOptimizationResult && lastOptimizationResult.dropped_address_details && lastOptimizationResult.dropped_address_details.length > 0 && (
+        <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-yellow-800 mb-3">Unassigned Addresses</h3>
+          <div className="space-y-3">
+            {lastOptimizationResult.dropped_address_details.map((detail) => (
+              <div key={detail.address_id} className="bg-white rounded border border-yellow-300 p-3">
+                <div className="flex items-start">
+                  <svg className="h-5 w-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{detail.recipient_name}</p>
+                    <p className="text-sm text-gray-600">{detail.street}</p>
+                    <div className="mt-2 text-xs text-gray-700 space-y-1">
+                      <p><span className="font-medium">Reason:</span> {detail.reason}</p>
+                      <p><span className="font-medium">Time Window:</span> {detail.time_window}</p>
+                      <p><span className="font-medium">Service Time:</span> {detail.service_time_minutes} minutes</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

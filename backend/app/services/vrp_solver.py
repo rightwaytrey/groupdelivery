@@ -316,6 +316,44 @@ class VRPSolver:
             'objective_value': solution.ObjectiveValue()
         }
 
+    def analyze_dropped_nodes(self, dropped_nodes: List[int]) -> Dict[int, Dict]:
+        """
+        Analyze why nodes were dropped.
+        Returns best-guess diagnostics for each dropped node.
+        """
+        analysis = {}
+
+        for node in dropped_nodes:
+            reasons = []
+            details = {}
+
+            # Check time window
+            tw = self.time_windows[node]
+            window_size = tw[1] - tw[0]
+            if window_size < 30:  # Very narrow window
+                reasons.append("narrow_time_window")
+                details['time_window_minutes'] = f"{tw[0]}-{tw[1]}"
+                details['window_size'] = window_size
+
+            # Check service time
+            service_time = self.service_times[node]
+            if service_time > 15:
+                reasons.append("high_service_time")
+                details['service_time'] = service_time
+
+            # Default reason if no specific issue detected
+            if not reasons:
+                reasons.append("capacity_or_duration")
+
+            analysis[node] = {
+                'reasons': reasons,
+                'details': details,
+                'time_window': self.time_windows[node],
+                'service_time': self.service_times[node]
+            }
+
+        return analysis
+
 
 def format_time(minutes: int, start_offset_minutes: int = 0) -> str:
     """Convert minutes from start to HH:MM format.

@@ -15,6 +15,7 @@ from ..models.user import User
 from ..schemas.route import (
     OptimizationRequest,
     OptimizationResult,
+    DroppedAddressDetail,
     DeliveryDay as DeliveryDaySchema,
     Route as RouteSchema
 )
@@ -238,6 +239,36 @@ async def optimize_routes(
     if not solution:
         raise HTTPException(status_code=500, detail="No solution found. Try increasing time limit or reducing constraints.")
 
+    # Analyze dropped addresses and build detailed diagnostics
+    dropped_address_details = []
+    if solution['dropped_nodes']:
+        # Get diagnostics from solver
+        node_analysis = solver.analyze_dropped_nodes(solution['dropped_nodes'])
+
+        # Build detailed messages for each dropped address
+        for node_idx in solution['dropped_nodes']:
+            address = address_map[node_idx]
+            analysis = node_analysis[node_idx]
+
+            # Build human-readable reason
+            reasons = []
+            if 'narrow_time_window' in analysis['reasons']:
+                tw_str = f"{address.preferred_time_start or 'none'}-{address.preferred_time_end or 'none'}"
+                reasons.append(f"Time window too restrictive ({tw_str})")
+            if 'high_service_time' in analysis['reasons']:
+                reasons.append(f"Service time too long ({address.service_time_minutes} min)")
+            if 'capacity_or_duration' in analysis['reasons']:
+                reasons.append("All drivers at capacity or route duration exceeded")
+
+            dropped_address_details.append(DroppedAddressDetail(
+                address_id=address.id,
+                recipient_name=address.recipient_name or 'Unknown',
+                street=address.street,
+                reason=' | '.join(reasons) if reasons else 'Capacity or duration constraints',
+                time_window=f"{address.preferred_time_start or 'none'} - {address.preferred_time_end or 'none'}",
+                service_time_minutes=address.service_time_minutes
+            ))
+
     # Create or update DeliveryDay
     result = await db.execute(
         select(DeliveryDay).where(DeliveryDay.date == request.date)
@@ -369,6 +400,7 @@ async def optimize_routes(
         total_duration_minutes=delivery_day.total_duration_minutes,
         routes=[RouteSchema.model_validate(r) for r in created_routes],
         dropped_addresses=[address_map[idx].id for idx in solution['dropped_nodes']],
+        dropped_address_details=dropped_address_details,
         message=f"Successfully optimized {len(addresses)} addresses into {len(created_routes)} routes"
     )
 

@@ -144,6 +144,15 @@ export interface OptimizationRequest {
   time_limit_seconds?: number;
 }
 
+export interface DroppedAddressDetail {
+  address_id: number;
+  recipient_name: string;
+  street: string;
+  reason: string;
+  time_window: string;
+  service_time_minutes: number;
+}
+
 export interface OptimizationResult {
   delivery_day_id: number;
   date: string;
@@ -154,5 +163,6 @@ export interface OptimizationResult {
   total_duration_minutes: number;
   routes: Route[];
   dropped_addresses: number[];
+  dropped_address_details?: DroppedAddressDetail[];
   message: string | null;
 }

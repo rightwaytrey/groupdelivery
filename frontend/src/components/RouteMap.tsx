@@ -31,6 +31,22 @@ const HomeIcon = L.divIcon({
   popupAnchor: [0, -32],
 });
 
+// Create a depot/warehouse icon
+const depotIconSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+  <path d="M11.47 3.84a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.06l-8.689-8.69a2.25 2.25 0 00-3.182 0l-8.69 8.69a.75.75 0 001.061 1.06l8.69-8.69z" />
+  <path d="M12 5.432l8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-3a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H5.625a1.875 1.875 0 01-1.875-1.875v-6.198a2.29 2.29 0 00.091-.086L12 5.43z" />
+</svg>
+`;
+
+const DepotIcon = L.divIcon({
+  html: `<div style="color: #3B82F6; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">${depotIconSvg}</div>`,
+  className: 'custom-depot-icon',
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+  popupAnchor: [0, -32],
+});
+
 L.Marker.prototype.options.icon = DefaultIcon;
 
 interface RouteMapProps {
@@ -38,16 +54,29 @@ interface RouteMapProps {
   addresses: Address[];
   drivers: Driver[];
   height?: string;
+  showDriverHomes?: number[]; // Array of driver IDs to show home markers for
+  depotLocation?: { latitude: number; longitude: number; address: string }; // Depot location
 }
 
 // Component to fit bounds when routes change
-function FitBounds({ routes }: { routes: Route[] }) {
+function FitBounds({
+  routes,
+  drivers,
+  showDriverHomes,
+  depotLocation
+}: {
+  routes: Route[];
+  drivers: Driver[];
+  showDriverHomes?: number[];
+  depotLocation?: { latitude: number; longitude: number; address: string };
+}) {
   const map = useMap();
 
   useEffect(() => {
-    if (routes.length > 0) {
-      const allCoordinates: [number, number][] = [];
+    const allCoordinates: [number, number][] = [];
 
+    if (routes.length > 0) {
+      // Fit to routes if they exist
       routes.forEach((route) => {
         if (route.route_geometry) {
           try {
@@ -63,13 +92,25 @@ function FitBounds({ routes }: { routes: Route[] }) {
           }
         }
       });
-
-      if (allCoordinates.length > 0) {
-        const bounds = L.latLngBounds(allCoordinates);
-        map.fitBounds(bounds, { padding: [50, 50] });
+    } else if (showDriverHomes && showDriverHomes.length > 0) {
+      // Preview mode - fit to depot and selected driver homes
+      if (depotLocation) {
+        allCoordinates.push([depotLocation.latitude, depotLocation.longitude]);
       }
+
+      showDriverHomes.forEach(driverId => {
+        const driver = drivers.find(d => d.id === driverId);
+        if (driver && driver.home_latitude && driver.home_longitude) {
+          allCoordinates.push([driver.home_latitude, driver.home_longitude]);
+        }
+      });
     }
-  }, [routes, map]);
+
+    if (allCoordinates.length > 0) {
+      const bounds = L.latLngBounds(allCoordinates);
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [routes, drivers, showDriverHomes, depotLocation, map]);
 
   return null;
 }

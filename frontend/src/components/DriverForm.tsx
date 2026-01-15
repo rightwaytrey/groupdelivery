@@ -12,6 +12,7 @@ export default function DriverForm({ onSuccess, onCancel, driver }: DriverFormPr
   const isEditing = !!driver;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [formData, setFormData] = useState<DriverCreate>({
     name: driver?.name ?? '',
     email: driver?.email ?? '',
@@ -45,6 +46,7 @@ export default function DriverForm({ onSuccess, onCancel, driver }: DriverFormPr
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setWarning(null);
 
     try {
       // Convert empty strings to undefined for optional fields
@@ -56,12 +58,20 @@ export default function DriverForm({ onSuccess, onCancel, driver }: DriverFormPr
         home_address: formData.home_address || undefined,
       };
 
+      let result;
       if (isEditing && driver) {
-        await driverApi.update(driver.id, submitData);
+        result = await driverApi.update(driver.id, submitData);
       } else {
-        await driverApi.create(submitData);
+        result = await driverApi.create(submitData);
       }
-      onSuccess();
+
+      // Check if there's a warning in the response
+      if (result.warning) {
+        setWarning(result.warning);
+        // Don't call onSuccess yet - let user see the warning
+      } else {
+        onSuccess();
+      }
     } catch (err: any) {
       console.error(`Failed to ${isEditing ? 'update' : 'create'} driver:`, err);
       setError(err.response?.data?.detail || `Failed to ${isEditing ? 'update' : 'create'} driver`);
@@ -81,6 +91,27 @@ export default function DriverForm({ onSuccess, onCancel, driver }: DriverFormPr
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
           {error}
+        </div>
+      )}
+
+      {warning && (
+        <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded">
+          <div className="flex items-start">
+            <svg className="h-5 w-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <div className="flex-1">
+              <p className="font-medium">Warning</p>
+              <p className="text-sm mt-1">{warning}</p>
+              <button
+                type="button"
+                onClick={onSuccess}
+                className="mt-3 text-sm font-medium text-yellow-900 hover:text-yellow-700 underline"
+              >
+                Continue anyway
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -49,6 +49,7 @@ export interface Driver {
   is_active: boolean;
   created_at: string;
   updated_at: string | null;
+  warning?: string | null;
 }
 
 export interface DriverCreate {

@@ -33,6 +33,7 @@ async def create_driver(
 
     # Geocode home address if provided
     home_lat, home_lng = None, None
+    geocode_warning = None
     if driver.home_address:
         # Try to parse address or use as-is
         lat, lng, status = await geocoding_service.geocode_address(
@@ -42,6 +43,8 @@ async def create_driver(
         )
         if status == "success":
             home_lat, home_lng = lat, lng
+        else:
+            geocode_warning = f"Could not geocode home address. The 'end at home' feature will not be available for this driver. Status: {status}"
 
     # Convert empty strings to None to avoid unique constraint issues
     driver_data = driver.model_dump(exclude={"home_address"})
@@ -61,7 +64,12 @@ async def create_driver(
     await db.commit()
     await db.refresh(db_driver)
 
-    return db_driver
+    # Add warning to response if geocoding failed
+    response = DriverResponse.model_validate(db_driver)
+    if geocode_warning:
+        response.warning = geocode_warning
+
+    return response
 
 
 @router.get("", response_model=list[DriverResponse])
@@ -178,6 +186,7 @@ async def update_driver(
         raise HTTPException(status_code=404, detail="Driver not found")
 
     update_data = driver_update.model_dump(exclude_unset=True)
+    geocode_warning = None
 
     # Convert empty strings to None to avoid unique constraint issues
     if "email" in update_data and update_data["email"] == "":
@@ -193,6 +202,8 @@ async def update_driver(
         if status == "success":
             update_data["home_latitude"] = lat
             update_data["home_longitude"] = lng
+        else:
+            geocode_warning = f"Could not geocode home address. The 'end at home' feature will not be available for this driver. Status: {status}"
 
     # Apply updates
     for field, value in update_data.items():
@@ -201,7 +212,12 @@ async def update_driver(
     await db.commit()
     await db.refresh(db_driver)
 
-    return db_driver
+    # Add warning to response if geocoding failed
+    response = DriverResponse.model_validate(db_driver)
+    if geocode_warning:
+        response.warning = geocode_warning
+
+    return response
 
 
 @router.delete("/{driver_id}", status_code=204)

@@ -43,6 +43,7 @@ class DriverResponse(DriverBase):
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime]
+    warning: Optional[str] = None  # Warning message if geocoding failed
 
     model_config = ConfigDict(from_attributes=True)
 

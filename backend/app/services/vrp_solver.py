@@ -148,7 +148,7 @@ class VRPSolver:
 
         routing.AddDimension(
             time_callback_index,
-            5,  # Allow minimal waiting time (slack) - reduced from 30 to force reordering
+            15,  # Balanced slack - enough flexibility without encouraging excessive waiting
             max_duration_overall,  # Maximum time per vehicle (use max of all)
             False,  # Don't force start cumul to zero
             'Time'
@@ -158,8 +158,8 @@ class VRPSolver:
 
         # Penalize total route duration to encourage reordering over waiting
         # This makes the solver prefer visiting other stops instead of waiting for time windows
-        # Coefficient of 10000 makes 1 minute of time span worth 10km of distance
-        time_dimension.SetGlobalSpanCostCoefficient(10000)
+        # Coefficient of 1000 makes 1 minute of time span worth 1km of distance
+        time_dimension.SetGlobalSpanCostCoefficient(1000)
 
         # Set per-vehicle max route duration constraints
         for vehicle_id in range(self.num_vehicles):

@@ -61,6 +61,10 @@ async def optimize_routes(
     5. Gets route geometries from OSRM
     """
 
+    print(f"=== OPTIMIZATION REQUEST RECEIVED ===", flush=True)
+    print(f"Date: {request.date}", flush=True)
+    print(f"Addresses: {len(request.address_ids)}, Drivers: {len(request.driver_ids)}", flush=True)
+
     logger.info(f"=== Starting optimization for date: {request.date} ===")
     logger.info(f"Addresses: {len(request.address_ids)}, Drivers: {len(request.driver_ids)}")
 

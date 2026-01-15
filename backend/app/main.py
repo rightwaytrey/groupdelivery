@@ -1,9 +1,14 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from app.config import settings
 from app.database import init_db
 from app.routers import addresses, drivers, optimization, auth
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -31,6 +36,30 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Global exception handler to prevent 502 errors
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch all unhandled exceptions to prevent 502 Bad Gateway errors."""
+    error_trace = traceback.format_exc()
+    logger.error(f"Unhandled exception on {request.method} {request.url}:\n{error_trace}")
+
+    # Don't override HTTP exceptions
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail}
+        )
+
+    # Return 500 for all other exceptions
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": f"Internal server error: {type(exc).__name__}: {str(exc)}",
+            "type": type(exc).__name__
+        }
+    )
+
 
 # Add security headers middleware
 @app.middleware("http")

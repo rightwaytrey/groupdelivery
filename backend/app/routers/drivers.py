@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from typing import Optional
 from datetime import date, datetime
+import io
+import csv
 from app.database import get_db
 from app.models.driver import Driver, DriverAvailability
 from app.models.user import User
@@ -95,6 +98,74 @@ async def list_drivers(
     drivers = result.scalars().all()
 
     return drivers
+
+
+@router.get("/export")
+async def export_drivers_csv(
+    is_active: Optional[bool] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Export all drivers as CSV."""
+
+    # Build query with optional filters (matching list_drivers logic)
+    query = select(Driver)
+    if is_active is not None:
+        query = query.where(Driver.is_active == is_active)
+    query = query.order_by(Driver.name)
+
+    result = await db.execute(query)
+    drivers = result.scalars().all()
+
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Write header
+    writer.writerow([
+        'ID',
+        'Name',
+        'Email',
+        'Phone',
+        'Vehicle Type',
+        'Max Stops',
+        'Max Route Duration (min)',
+        'Home Address',
+        'Home Latitude',
+        'Home Longitude',
+        'Is Active',
+        'Created At',
+        'Updated At'
+    ])
+
+    # Write driver rows
+    for driver in drivers:
+        writer.writerow([
+            driver.id,
+            driver.name,
+            driver.email or '',
+            driver.phone or '',
+            driver.vehicle_type or '',
+            driver.max_stops or '',
+            driver.max_route_duration_minutes or '',
+            driver.home_address or '',
+            driver.home_latitude or '',
+            driver.home_longitude or '',
+            'Yes' if driver.is_active else 'No',
+            driver.created_at.isoformat() if driver.created_at else '',
+            driver.updated_at.isoformat() if driver.updated_at else ''
+        ])
+
+    # Prepare response
+    output.seek(0)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"drivers_{timestamp}.csv"
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 
 @router.get("/available", response_model=list[AvailableDriverResponse])

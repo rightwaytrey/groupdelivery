@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional
+from datetime import datetime
+import io
+import csv
 from app.database import get_db
 from app.models.address import Address
 from app.models.user import User
@@ -77,6 +81,87 @@ async def list_addresses(
     addresses = result.scalars().all()
 
     return addresses
+
+
+@router.get("/export")
+async def export_addresses_csv(
+    is_active: Optional[bool] = Query(None),
+    geocode_status: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Export all addresses as CSV."""
+
+    # Build query with optional filters (matching list_addresses logic)
+    query = select(Address)
+    if is_active is not None:
+        query = query.where(Address.is_active == is_active)
+    if geocode_status:
+        query = query.where(Address.geocode_status == geocode_status)
+    query = query.order_by(Address.created_at.desc())
+
+    result = await db.execute(query)
+    addresses = result.scalars().all()
+
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Write header (compatible with import format plus extra fields)
+    writer.writerow([
+        'ID',
+        'Street',
+        'City',
+        'State',
+        'Postal Code',
+        'Country',
+        'Recipient Name',
+        'Phone',
+        'Notes',
+        'Service Time (min)',
+        'Preferred Time Start',
+        'Preferred Time End',
+        'Latitude',
+        'Longitude',
+        'Geocode Status',
+        'Is Active',
+        'Created At',
+        'Updated At'
+    ])
+
+    # Write address rows
+    for address in addresses:
+        writer.writerow([
+            address.id,
+            address.street,
+            address.city,
+            address.state or '',
+            address.postal_code or '',
+            address.country or '',
+            address.recipient_name or '',
+            address.phone or '',
+            address.notes or '',
+            address.service_time_minutes or '',
+            address.preferred_time_start or '',
+            address.preferred_time_end or '',
+            address.latitude or '',
+            address.longitude or '',
+            address.geocode_status or '',
+            'Yes' if address.is_active else 'No',
+            address.created_at.isoformat() if address.created_at else '',
+            address.updated_at.isoformat() if address.updated_at else ''
+        ])
+
+    # Prepare response
+    output.seek(0)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"addresses_{timestamp}.csv"
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 
 @router.get("/{address_id}", response_model=AddressResponse)

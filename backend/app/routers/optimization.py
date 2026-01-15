@@ -420,12 +420,12 @@ async def optimize_routes(
         start_minutes = route_data['stops'][0]['time_minutes']
         # If route ends at home, recalculate end time based on actual duration
         if driver.id in driver_home_locations:
-            end_minutes = start_minutes + actual_duration_minutes
+            end_minutes = int(start_minutes + actual_duration_minutes)
         else:
             end_minutes = route_data['stops'][-1]['time_minutes']
 
-        start_time = format_time(start_minutes, earliest_start_offset)
-        end_time = format_time(end_minutes, earliest_start_offset)
+        start_time = format_time(int(start_minutes), earliest_start_offset)
+        end_time = format_time(int(end_minutes), earliest_start_offset)
 
         route = Route(
             delivery_day_id=delivery_day.id,

@@ -277,7 +277,8 @@ export default function Routes() {
           ...prevConstraints,
           [driverId]: {
             max_stops: 15,
-            max_route_duration_minutes: 120
+            max_route_duration_minutes: 120,
+            end_at_home: false
           }
         }));
         return [...prev, driverId];
@@ -595,7 +596,8 @@ export default function Routes() {
                 activeDriverIds.forEach(id => {
                   newConstraints[id] = {
                     max_stops: 15,
-                    max_route_duration_minutes: 120
+                    max_route_duration_minutes: 120,
+                    end_at_home: false
                   };
                 });
                 setDriverConstraints(newConstraints);

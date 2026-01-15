@@ -105,7 +105,9 @@ export default function Routes() {
 
         finalConstraints[parseInt(driverId)] = {
           max_stops: proportionalStops,
-          max_route_duration_minutes: duration
+          max_route_duration_minutes: duration,
+          start_time: constraint.start_time,
+          end_at_home: constraint.end_at_home
         };
       }
     }

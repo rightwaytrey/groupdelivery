@@ -127,20 +127,24 @@ async def optimize_routes(
     logger.info(f"Drivers ending at home: {list(drivers_ending_at_home.keys())}")
     print(f"Drivers ending at home: {list(drivers_ending_at_home.keys())}", flush=True)
 
-    # Build locations list: depot first, then addresses
-    # Note: We don't add home locations to the OR-Tools locations list anymore
-    # to avoid segfaults with per-vehicle endpoints. Instead, we'll manually
-    # add home stops to route geometries after optimization.
+    # Build locations list: depot first, then addresses, then home locations
     locations = [(depot_lat, depot_lon)]  # Index 0 = depot
     address_map = {}  # Map location index to address
     for i, addr in enumerate(addresses):
         locations.append((addr.latitude, addr.longitude))
         address_map[i + 1] = addr  # +1 because depot is at index 0
 
-    # Store home locations for later use in route geometry
+    # Add home locations to the end of locations list
+    # These will be mandatory final stops in routes
+    home_location_indices = {}  # Map driver_id -> location index
     driver_home_locations = {}  # Map driver_id -> (lat, lon)
     for driver_id, home_coords in drivers_ending_at_home.items():
+        home_idx = len(locations)
+        home_location_indices[driver_id] = home_idx
         driver_home_locations[driver_id] = home_coords
+        locations.append(home_coords)
+        logger.info(f"Added home location for driver {driver_id} at index {home_idx}")
+        print(f"Added home location for driver {driver_id} at index {home_idx}", flush=True)
 
     # Get distance matrix from OSRM
     logger.info(f"Fetching distance matrix for {len(locations)} locations from OSRM...")
@@ -170,6 +174,9 @@ async def optimize_routes(
     service_times = [0]  # Depot has 0 service time
     for addr in addresses:
         service_times.append(addr.service_time_minutes or 5)
+    # Add zero service time for home locations
+    for _ in drivers_ending_at_home:
+        service_times.append(0)
     solver.set_service_times(service_times)
 
     # Set vehicle capacities (max stops per driver)
@@ -238,7 +245,22 @@ async def optimize_routes(
         end_min = parse_time(addr.preferred_time_end, base_time) if addr.preferred_time_end else max_overall_duration
         time_windows.append((start_min, end_min))
 
+    # Add time windows for home locations (no constraints)
+    for _ in drivers_ending_at_home:
+        time_windows.append((0, max_overall_duration))
+
     solver.set_time_windows(time_windows)
+
+    # Set mandatory final stops for vehicles ending at home
+    # This will force the solver to visit home locations as the last stop before depot
+    if home_location_indices:
+        mandatory_final_stops = {}
+        for i, driver in enumerate(drivers):
+            if driver.id in home_location_indices:
+                mandatory_final_stops[i] = home_location_indices[driver.id]
+        solver.set_vehicle_mandatory_final_stops(mandatory_final_stops)
+        logger.info(f"Set mandatory final stops: {mandatory_final_stops}")
+        print(f"Set mandatory final stops: {mandatory_final_stops}", flush=True)
 
     # Validate solver inputs before calling solve to prevent segfaults
     try:

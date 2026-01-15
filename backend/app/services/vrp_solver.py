@@ -55,6 +55,9 @@ class VRPSolver:
         # Vehicle capacities (max stops per vehicle)
         self.vehicle_capacities = [15] * num_vehicles
 
+        # Mandatory final stops per vehicle (location index that must be last before depot)
+        self.vehicle_mandatory_final_stops = {}  # Map vehicle_id -> location_index
+
     def set_service_times(self, service_times: List[int]):
         """Set service time (in minutes) for each location."""
         self.service_times = service_times
@@ -83,6 +86,16 @@ class VRPSolver:
     def set_vehicle_start_offsets(self, offsets: List[int]):
         """Set start time offset for each vehicle (minutes from global start)."""
         self.vehicle_start_offsets = offsets
+
+    def set_vehicle_mandatory_final_stops(self, mandatory_stops: Dict[int, int]):
+        """
+        Set mandatory final stops for specific vehicles.
+
+        Args:
+            mandatory_stops: Map of vehicle_id -> location_index that must be
+                           visited as the last stop before returning to depot
+        """
+        self.vehicle_mandatory_final_stops = mandatory_stops
 
     def solve(self, time_limit_seconds: int = 30) -> Optional[Dict]:
         """
@@ -198,15 +211,18 @@ class VRPSolver:
                 time_dimension.CumulVar(routing.End(i))
             )
 
+        # Get set of mandatory final stops (home locations) that shouldn't count as deliveries
+        mandatory_stop_indices = set(self.vehicle_mandatory_final_stops.values())
+
         # Add capacity constraint (max stops per vehicle)
         def demand_callback(from_index):
-            """Returns the demand (1 stop per location, excluding depot and vehicle endpoints)."""
+            """Returns the demand (1 stop per location, excluding depot and home endpoints)."""
             from_node = manager.IndexToNode(from_index)
             # Depot has no demand
             if from_node == self.depot_index:
                 return 0
-            # Home locations (vehicle end points) have no demand - they are endpoints not deliveries
-            if from_node in self.vehicle_ends:
+            # Home locations (mandatory final stops) have no demand - they are endpoints not deliveries
+            if from_node in mandatory_stop_indices:
                 return 0
             return 1
 
@@ -221,13 +237,22 @@ class VRPSolver:
         )
 
         # Allow dropping nodes (with high penalty)
-        # Exclude home locations - they are mandatory vehicle endpoints
+        # Exclude mandatory final stops (home locations) - they must be visited
         penalty = 100000
-        home_indices = set(self.vehicle_ends) - {self.depot_index}
         for node in range(1, self.num_locations):
-            # Don't add home locations to disjunction - they are mandatory endpoints
-            if node not in home_indices:
+            # Don't add mandatory final stops to disjunction - they must be visited
+            if node not in mandatory_stop_indices:
                 routing.AddDisjunction([manager.NodeToIndex(node)], penalty)
+
+        # Add constraints for mandatory final stops
+        # Force each vehicle's mandatory final stop to be visited last before depot
+        for vehicle_id, home_node_idx in self.vehicle_mandatory_final_stops.items():
+            home_index = manager.NodeToIndex(home_node_idx)
+            end_index = routing.End(vehicle_id)
+
+            # The next location after home must be the end (depot)
+            # This forces home to be the last stop before returning
+            routing.solver().Add(routing.NextVar(home_index) == end_index)
 
         # Set search parameters
         search_parameters = pywrapcp.DefaultRoutingSearchParameters()

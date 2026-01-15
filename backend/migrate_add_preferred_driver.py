@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from app.database import engine
+from sqlalchemy import text
 
 
 async def run_migration():
@@ -28,7 +29,7 @@ async def run_migration():
         async with engine.begin() as conn:
             # Check if column already exists
             result = await conn.execute(
-                "PRAGMA table_info(addresses)"
+                text("PRAGMA table_info(addresses)")
             )
             columns = [row[1] for row in result.fetchall()]
 
@@ -38,7 +39,7 @@ async def run_migration():
 
             # Add the column
             await conn.execute(
-                "ALTER TABLE addresses ADD COLUMN preferred_driver_id INTEGER"
+                text("ALTER TABLE addresses ADD COLUMN preferred_driver_id INTEGER")
             )
 
         print("✓ Migration completed successfully!")

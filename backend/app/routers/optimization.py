@@ -136,10 +136,17 @@ async def optimize_routes(
         locations.append(home_coords)
 
     # Get distance matrix from OSRM
+    logger.info(f"Fetching distance matrix for {len(locations)} locations from OSRM...")
     try:
         distance_matrix, duration_matrix = await osrm_service.get_distance_matrix(locations)
+        logger.info(f"Successfully fetched distance matrix: {len(distance_matrix)}x{len(distance_matrix[0])} matrix")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get distance matrix: {str(e)}")
+        error_details = traceback.format_exc()
+        logger.error(f"OSRM distance matrix error:\n{error_details}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get distance matrix from OSRM: {type(e).__name__}: {str(e)}"
+        )
 
     # Build per-vehicle start and end indices
     vehicle_starts = [0] * len(drivers)  # All start at depot
@@ -240,6 +247,37 @@ async def optimize_routes(
         time_windows.append((0, max_overall_duration))
 
     solver.set_time_windows(time_windows)
+
+    # Validate solver inputs before calling solve to prevent segfaults
+    try:
+        # Check for empty inputs
+        if len(addresses) == 0:
+            raise HTTPException(status_code=400, detail="No addresses to optimize")
+        if len(drivers) == 0:
+            raise HTTPException(status_code=400, detail="No drivers available")
+
+        # Check distance matrix
+        if len(distance_matrix) != len(locations):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Distance matrix size mismatch: {len(distance_matrix)} vs {len(locations)} locations"
+            )
+
+        # Check for invalid coordinates
+        for i, loc in enumerate(locations):
+            if loc[0] is None or loc[1] is None or not (-90 <= loc[0] <= 90) or not (-180 <= loc[1] <= 180):
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Invalid coordinates at location {i}: {loc}"
+                )
+
+        logger.info(f"Starting VRP solver with {len(addresses)} addresses, {len(drivers)} drivers, {len(locations)} total locations")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Pre-solver validation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Validation error: {str(e)}")
 
     # Solve VRP
     try:

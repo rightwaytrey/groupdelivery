@@ -98,3 +98,18 @@ async def health_check():
 async def api_health_check():
     """API health check endpoint for Docker healthcheck"""
     return {"status": "healthy"}
+
+
+@app.get("/api/debug")
+async def debug_info():
+    """Debug endpoint to check backend status"""
+    import sys
+    import platform
+    return {
+        "status": "running",
+        "app": settings.app_name,
+        "version": settings.app_version,
+        "python_version": sys.version,
+        "platform": platform.platform(),
+        "debug": True
+    }

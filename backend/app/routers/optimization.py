@@ -8,6 +8,10 @@ from datetime import datetime
 import json
 import io
 import csv
+import traceback
+import logging
+
+logger = logging.getLogger(__name__)
 
 from ..database import get_db
 from ..models import Address, Driver, DeliveryDay, Route, RouteStop
@@ -234,49 +238,65 @@ async def optimize_routes(
     try:
         solution = solver.solve(time_limit_seconds=request.time_limit_seconds)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Solver error: {str(e)}")
+        error_details = traceback.format_exc()
+        logger.error(f"VRP Solver exception:\n{error_details}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Solver error: {type(e).__name__}: {str(e)}"
+        )
 
     if not solution:
         raise HTTPException(status_code=500, detail="No solution found. Try increasing time limit or reducing constraints.")
 
     # Analyze dropped addresses and build detailed diagnostics
     dropped_address_details = []
-    if solution['dropped_nodes']:
-        # Filter out home location indices - they are vehicle endpoints, not delivery stops
-        # Home locations start after depot (0) and addresses (1 to len(addresses))
-        home_location_start_idx = len(addresses) + 1
-        dropped_address_nodes = [
-            node_idx for node_idx in solution['dropped_nodes']
-            if node_idx < home_location_start_idx and node_idx != 0
-        ]
+    try:
+        if solution['dropped_nodes']:
+            # Filter out home location indices - they are vehicle endpoints, not delivery stops
+            # Home locations start after depot (0) and addresses (1 to len(addresses))
+            home_location_start_idx = len(addresses) + 1
+            dropped_address_nodes = [
+                node_idx for node_idx in solution['dropped_nodes']
+                if node_idx < home_location_start_idx and node_idx != 0
+            ]
 
-        if dropped_address_nodes:
-            # Get diagnostics from solver
-            node_analysis = solver.analyze_dropped_nodes(dropped_address_nodes)
+            if dropped_address_nodes:
+                # Get diagnostics from solver
+                node_analysis = solver.analyze_dropped_nodes(dropped_address_nodes)
 
-            # Build detailed messages for each dropped address
-            for node_idx in dropped_address_nodes:
-                address = address_map[node_idx]
-                analysis = node_analysis[node_idx]
+                # Build detailed messages for each dropped address
+                for node_idx in dropped_address_nodes:
+                    address = address_map[node_idx]
+                    analysis = node_analysis[node_idx]
 
-                # Build human-readable reason
-                reasons = []
-                if 'narrow_time_window' in analysis['reasons']:
-                    tw_str = f"{address.preferred_time_start or 'none'}-{address.preferred_time_end or 'none'}"
-                    reasons.append(f"Time window too restrictive ({tw_str})")
-                if 'high_service_time' in analysis['reasons']:
-                    reasons.append(f"Service time too long ({address.service_time_minutes} min)")
-                if 'capacity_or_duration' in analysis['reasons']:
-                    reasons.append("All drivers at capacity or route duration exceeded")
+                    # Build human-readable reason
+                    reasons = []
+                    if 'narrow_time_window' in analysis['reasons']:
+                        tw_str = f"{address.preferred_time_start or 'none'}-{address.preferred_time_end or 'none'}"
+                        reasons.append(f"Time window too restrictive ({tw_str})")
+                    if 'high_service_time' in analysis['reasons']:
+                        reasons.append(f"Service time too long ({address.service_time_minutes} min)")
+                    if 'capacity_or_duration' in analysis['reasons']:
+                        reasons.append("All drivers at capacity or route duration exceeded")
 
-                dropped_address_details.append(DroppedAddressDetail(
-                    address_id=address.id,
-                    recipient_name=address.recipient_name or 'Unknown',
-                    street=address.street,
-                    reason=' | '.join(reasons) if reasons else 'Capacity or duration constraints',
-                    time_window=f"{address.preferred_time_start or 'none'} - {address.preferred_time_end or 'none'}",
-                    service_time_minutes=address.service_time_minutes
-                ))
+                    dropped_address_details.append(DroppedAddressDetail(
+                        address_id=address.id,
+                        recipient_name=address.recipient_name or 'Unknown',
+                        street=address.street,
+                        reason=' | '.join(reasons) if reasons else 'Capacity or duration constraints',
+                        time_window=f"{address.preferred_time_start or 'none'} - {address.preferred_time_end or 'none'}",
+                        service_time_minutes=address.service_time_minutes
+                    ))
+    except Exception as e:
+        error_details = traceback.format_exc()
+        logger.error(f"Error analyzing dropped addresses:\n{error_details}")
+        logger.error(f"Dropped nodes: {solution.get('dropped_nodes', [])}")
+        logger.error(f"Address map keys: {list(address_map.keys())}")
+        logger.error(f"Home location start idx: {len(addresses) + 1}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing dropped addresses: {type(e).__name__}: {str(e)}"
+        )
 
     # Create or update DeliveryDay
     result = await db.execute(

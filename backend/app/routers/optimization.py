@@ -61,6 +61,9 @@ async def optimize_routes(
     5. Gets route geometries from OSRM
     """
 
+    logger.info(f"=== Starting optimization for date: {request.date} ===")
+    logger.info(f"Addresses: {len(request.address_ids)}, Drivers: {len(request.driver_ids)}")
+
     # Validate addresses exist and have coordinates
     result = await db.execute(
         select(Address).where(

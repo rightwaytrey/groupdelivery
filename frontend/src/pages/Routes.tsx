@@ -137,7 +137,28 @@ export default function Routes() {
       }
     } catch (err: any) {
       console.error('Optimization failed:', err);
-      setError(err.response?.data?.detail || 'Optimization failed');
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response,
+        data: err.response?.data,
+        status: err.response?.status,
+        statusText: err.response?.statusText
+      });
+
+      // Try to extract the most informative error message
+      let errorMessage = 'Optimization failed';
+
+      if (err.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = `Optimization failed: ${err.message}`;
+      } else if (err.response?.statusText) {
+        errorMessage = `Optimization failed: ${err.response.statusText}`;
+      }
+
+      setError(errorMessage);
     } finally {
       setOptimizing(false);
     }

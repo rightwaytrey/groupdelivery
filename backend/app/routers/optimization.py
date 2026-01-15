@@ -127,18 +127,20 @@ async def optimize_routes(
     logger.info(f"Drivers ending at home: {list(drivers_ending_at_home.keys())}")
     print(f"Drivers ending at home: {list(drivers_ending_at_home.keys())}", flush=True)
 
-    # Build locations list: depot first, then addresses, then home locations
+    # Build locations list: depot first, then addresses
+    # Note: We don't add home locations to the OR-Tools locations list anymore
+    # to avoid segfaults with per-vehicle endpoints. Instead, we'll manually
+    # add home stops to route geometries after optimization.
     locations = [(depot_lat, depot_lon)]  # Index 0 = depot
     address_map = {}  # Map location index to address
     for i, addr in enumerate(addresses):
         locations.append((addr.latitude, addr.longitude))
         address_map[i + 1] = addr  # +1 because depot is at index 0
 
-    # Add driver home locations (for those ending at home)
-    home_location_indices = {}  # Map driver_id -> location index
+    # Store home locations for later use in route geometry
+    driver_home_locations = {}  # Map driver_id -> (lat, lon)
     for driver_id, home_coords in drivers_ending_at_home.items():
-        home_location_indices[driver_id] = len(locations)
-        locations.append(home_coords)
+        driver_home_locations[driver_id] = home_coords
 
     # Get distance matrix from OSRM
     logger.info(f"Fetching distance matrix for {len(locations)} locations from OSRM...")
@@ -153,37 +155,21 @@ async def optimize_routes(
             detail=f"Failed to get distance matrix from OSRM: {type(e).__name__}: {str(e)}"
         )
 
-    # Build per-vehicle start and end indices
-    vehicle_starts = [0] * len(drivers)  # All start at depot
-    vehicle_ends = []
-    for driver in drivers:
-        if driver.id in home_location_indices:
-            home_idx = home_location_indices[driver.id]
-            vehicle_ends.append(home_idx)
-            logger.info(f"Driver {driver.name} (ID {driver.id}) vehicle end index: {home_idx} (home)")
-            print(f"Driver {driver.name} (ID {driver.id}) vehicle end index: {home_idx} (home)", flush=True)
-        else:
-            vehicle_ends.append(0)  # Return to depot
-            logger.info(f"Driver {driver.name} (ID {driver.id}) vehicle end index: 0 (depot)")
-            print(f"Driver {driver.name} (ID {driver.id}) vehicle end index: 0 (depot)", flush=True)
-
-    # Set up VRP solver
+    # Set up VRP solver with simple depot-based routing
+    # All vehicles start and end at depot (index 0)
+    # We'll manually add home locations to route geometries after optimization
     solver = VRPSolver(
         distance_matrix=distance_matrix,
         duration_matrix=duration_matrix,
         num_vehicles=len(drivers),
-        depot_index=0,
-        vehicle_starts=vehicle_starts,
-        vehicle_ends=vehicle_ends
+        depot_index=0
+        # Not using vehicle_starts/vehicle_ends to avoid OR-Tools segfaults
     )
 
     # Set service times for each location
     service_times = [0]  # Depot has 0 service time
     for addr in addresses:
         service_times.append(addr.service_time_minutes or 5)
-    # Add zero service time for home locations
-    for _ in drivers_ending_at_home:
-        service_times.append(0)
     solver.set_service_times(service_times)
 
     # Set vehicle capacities (max stops per driver)
@@ -252,10 +238,6 @@ async def optimize_routes(
         end_min = parse_time(addr.preferred_time_end, base_time) if addr.preferred_time_end else max_overall_duration
         time_windows.append((start_min, end_min))
 
-    # Add time windows for home locations (no constraints)
-    for _ in drivers_ending_at_home:
-        time_windows.append((0, max_overall_duration))
-
     solver.set_time_windows(time_windows)
 
     # Validate solver inputs before calling solve to prevent segfaults
@@ -314,12 +296,10 @@ async def optimize_routes(
     dropped_address_details = []
     try:
         if solution['dropped_nodes']:
-            # Filter out home location indices - they are vehicle endpoints, not delivery stops
-            # Home locations start after depot (0) and addresses (1 to len(addresses))
-            home_location_start_idx = len(addresses) + 1
+            # Filter out depot (index 0), everything else is a delivery address
             dropped_address_nodes = [
                 node_idx for node_idx in solution['dropped_nodes']
-                if node_idx < home_location_start_idx and node_idx != 0
+                if node_idx != 0
             ]
 
             if dropped_address_nodes:
@@ -401,7 +381,18 @@ async def optimize_routes(
         color = ROUTE_COLORS[i % len(ROUTE_COLORS)]
 
         # Get route geometry from OSRM
+        # If driver ends at home, insert home location before final depot return
         route_locations = [locations[stop['location_index']] for stop in route_data['stops']]
+
+        if driver.id in driver_home_locations:
+            # Insert home location before the last stop (depot return)
+            # route_locations is: [depot, stop1, stop2, ..., depot]
+            # We want: [depot, stop1, stop2, ..., home, depot]
+            home_coords = driver_home_locations[driver.id]
+            route_locations.insert(-1, home_coords)
+            logger.info(f"Inserted home location for driver {driver.name} into route geometry")
+            print(f"Inserted home location for driver {driver.name} into route geometry", flush=True)
+
         try:
             geometry_data = await osrm_service.get_route_geometry(route_locations)
             route_geometry = json.dumps(geometry_data['geometry'])
@@ -481,11 +472,10 @@ async def optimize_routes(
     )
     created_routes = list(result.scalars().all())
 
-    # Filter dropped nodes to only include actual addresses (not depot or home locations)
-    home_location_start_idx = len(addresses) + 1
+    # Filter dropped nodes to only include actual addresses (not depot)
     dropped_address_ids = [
         address_map[idx].id for idx in solution['dropped_nodes']
-        if idx < home_location_start_idx and idx != 0
+        if idx != 0
     ]
 
     # Build response

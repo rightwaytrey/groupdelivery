@@ -12,6 +12,8 @@ export interface Address {
   service_time_minutes: number;
   preferred_time_start: string | null;
   preferred_time_end: string | null;
+  preferred_driver_id: number | null;
+  preferred_driver_name: string | null;
   latitude: number | null;
   longitude: number | null;
   geocode_status: string;
@@ -32,6 +34,7 @@ export interface AddressCreate {
   service_time_minutes?: number;
   preferred_time_start?: string;
   preferred_time_end?: string;
+  preferred_driver_id?: number;
 }
 
 // Driver types

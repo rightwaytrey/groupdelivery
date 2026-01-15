@@ -21,6 +21,9 @@ class AddressBase(BaseModel):
     preferred_time_end: Optional[str] = Field(
         None, pattern=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
     )
+    preferred_driver_id: Optional[int] = Field(
+        None, description="Preferred driver for this address (soft constraint)"
+    )
 
 
 class AddressCreate(AddressBase):
@@ -47,6 +50,9 @@ class AddressUpdate(BaseModel):
     preferred_time_end: Optional[str] = Field(
         None, pattern=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
     )
+    preferred_driver_id: Optional[int] = Field(
+        None, description="Preferred driver for this address (soft constraint)"
+    )
     is_active: Optional[bool] = None
 
 
@@ -60,6 +66,7 @@ class AddressResponse(AddressBase):
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime]
+    preferred_driver_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

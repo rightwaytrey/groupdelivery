@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -35,6 +36,14 @@ class Address(Base):
     # Preferred time window (optional)
     preferred_time_start = Column(String(5), nullable=True)  # "09:00"
     preferred_time_end = Column(String(5), nullable=True)  # "12:00"
+
+    # Preferred driver (soft constraint for route optimization)
+    preferred_driver_id = Column(
+        Integer, ForeignKey("drivers.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Relationships
+    preferred_driver = relationship("Driver", foreign_keys=[preferred_driver_id])
 
     # Status tracking
     is_active = Column(Boolean, default=True)

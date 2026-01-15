@@ -8,6 +8,7 @@ import io
 import csv
 from app.database import get_db
 from app.models.address import Address
+from app.models.driver import Driver
 from app.models.user import User
 from app.schemas.address import (
     AddressCreate,
@@ -30,6 +31,17 @@ async def create_address(
 ):
     """Create a new address and automatically geocode it"""
 
+    # Validate preferred_driver_id if provided
+    driver_name = None
+    if address.preferred_driver_id:
+        driver_result = await db.execute(
+            select(Driver).where(Driver.id == address.preferred_driver_id)
+        )
+        driver = driver_result.scalar_one_or_none()
+        if not driver:
+            raise HTTPException(status_code=400, detail="Preferred driver not found")
+        driver_name = driver.name
+
     # Geocode the address
     lat, lng, status = await geocoding_service.geocode_address(
         street=address.street,
@@ -48,7 +60,12 @@ async def create_address(
     await db.commit()
     await db.refresh(db_address)
 
-    return db_address
+    # Build response with driver name
+    response = AddressResponse.model_validate(db_address)
+    if driver_name:
+        response.preferred_driver_name = driver_name
+
+    return response
 
 
 @router.get("", response_model=list[AddressResponse])
@@ -57,6 +74,7 @@ async def list_addresses(
     limit: int = Query(100, ge=1, le=1000),
     is_active: Optional[bool] = Query(None),
     geocode_status: Optional[str] = Query(None),
+    preferred_driver_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -71,6 +89,9 @@ async def list_addresses(
     if geocode_status:
         query = query.where(Address.geocode_status == geocode_status)
 
+    if preferred_driver_id is not None:
+        query = query.where(Address.preferred_driver_id == preferred_driver_id)
+
     # Order by created date descending
     query = query.order_by(Address.created_at.desc())
 
@@ -80,7 +101,25 @@ async def list_addresses(
     result = await db.execute(query)
     addresses = result.scalars().all()
 
-    return addresses
+    # Build driver name lookup
+    driver_ids = [a.preferred_driver_id for a in addresses if a.preferred_driver_id]
+    driver_names = {}
+    if driver_ids:
+        driver_result = await db.execute(
+            select(Driver).where(Driver.id.in_(driver_ids))
+        )
+        for driver in driver_result.scalars().all():
+            driver_names[driver.id] = driver.name
+
+    # Build response with driver names
+    response = []
+    for addr in addresses:
+        addr_response = AddressResponse.model_validate(addr)
+        if addr.preferred_driver_id and addr.preferred_driver_id in driver_names:
+            addr_response.preferred_driver_name = driver_names[addr.preferred_driver_id]
+        response.append(addr_response)
+
+    return response
 
 
 @router.get("/export")
@@ -121,6 +160,7 @@ async def export_addresses_csv(
         'Service Time (min)',
         'Preferred Time Start',
         'Preferred Time End',
+        'Preferred Driver ID',
         'Latitude',
         'Longitude',
         'Geocode Status',
@@ -144,6 +184,7 @@ async def export_addresses_csv(
             address.service_time_minutes or '',
             address.preferred_time_start or '',
             address.preferred_time_end or '',
+            address.preferred_driver_id or '',
             address.latitude or '',
             address.longitude or '',
             address.geocode_status or '',
@@ -178,7 +219,17 @@ async def get_address(
     if not address:
         raise HTTPException(status_code=404, detail="Address not found")
 
-    return address
+    # Build response with driver name
+    response = AddressResponse.model_validate(address)
+    if address.preferred_driver_id:
+        driver_result = await db.execute(
+            select(Driver).where(Driver.id == address.preferred_driver_id)
+        )
+        driver = driver_result.scalar_one_or_none()
+        if driver:
+            response.preferred_driver_name = driver.name
+
+    return response
 
 
 @router.put("/{address_id}", response_model=AddressResponse)
@@ -198,6 +249,18 @@ async def update_address(
 
     # Update fields
     update_data = address_update.model_dump(exclude_unset=True)
+
+    # Validate preferred_driver_id if being updated
+    driver_name = None
+    if "preferred_driver_id" in update_data:
+        if update_data["preferred_driver_id"] is not None:
+            driver_result = await db.execute(
+                select(Driver).where(Driver.id == update_data["preferred_driver_id"])
+            )
+            driver = driver_result.scalar_one_or_none()
+            if not driver:
+                raise HTTPException(status_code=400, detail="Preferred driver not found")
+            driver_name = driver.name
 
     # If address fields changed, re-geocode
     address_fields = {"street", "city", "state", "postal_code", "country"}
@@ -228,7 +291,20 @@ async def update_address(
     await db.commit()
     await db.refresh(db_address)
 
-    return db_address
+    # Build response with driver name
+    response = AddressResponse.model_validate(db_address)
+    if driver_name:
+        response.preferred_driver_name = driver_name
+    elif db_address.preferred_driver_id:
+        # Fetch driver name if not already loaded
+        driver_result = await db.execute(
+            select(Driver).where(Driver.id == db_address.preferred_driver_id)
+        )
+        driver = driver_result.scalar_one_or_none()
+        if driver:
+            response.preferred_driver_name = driver.name
+
+    return response
 
 
 @router.delete("/{address_id}", status_code=204)

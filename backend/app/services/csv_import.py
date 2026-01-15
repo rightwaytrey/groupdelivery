@@ -19,6 +19,7 @@ class CsvImportService:
         "service_time_minutes",
         "preferred_time_start",
         "preferred_time_end",
+        "preferred_driver_id",
     }
 
     async def parse_csv(self, file: UploadFile) -> Tuple[list[dict], list[dict]]:
@@ -109,6 +110,16 @@ class CsvImportService:
         cleaned["preferred_time_end"] = (
             row.get("preferred_time_end", "").strip() or None
         )
+
+        # Preferred driver ID (optional integer)
+        preferred_driver_id = row.get("preferred_driver_id", "").strip()
+        if preferred_driver_id:
+            try:
+                cleaned["preferred_driver_id"] = int(preferred_driver_id)
+            except ValueError:
+                raise ValueError(f"Invalid preferred_driver_id: {preferred_driver_id}")
+        else:
+            cleaned["preferred_driver_id"] = None
 
         return cleaned
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { addressApi } from '../lib/api';
-import type { Address, AddressCreate } from '../types';
+import { addressApi, driverApi } from '../lib/api';
+import type { Address, AddressCreate, Driver } from '../types';
 import AddressAutocomplete from './AddressAutocomplete';
 import type { ParsedAddress } from '../types/geocoding';
 
@@ -14,6 +14,7 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
   const isEditing = !!address;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [formData, setFormData] = useState<AddressCreate>({
     street: address?.street ?? '',
     city: address?.city ?? '',
@@ -26,7 +27,22 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
     service_time_minutes: address?.service_time_minutes ?? 5,
     preferred_time_start: address?.preferred_time_start ?? '',
     preferred_time_end: address?.preferred_time_end ?? '',
+    preferred_driver_id: address?.preferred_driver_id ?? undefined,
   });
+
+  // Fetch active drivers for the dropdown
+  useEffect(() => {
+    const fetchDrivers = async () => {
+      try {
+        const allDrivers = await driverApi.list();
+        // Filter to active drivers only
+        setDrivers(allDrivers.filter(d => d.is_active));
+      } catch (err) {
+        console.error('Failed to fetch drivers:', err);
+      }
+    };
+    fetchDrivers();
+  }, []);
 
   // Update form data when address prop changes
   useEffect(() => {
@@ -43,6 +59,7 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
         service_time_minutes: address.service_time_minutes,
         preferred_time_start: address.preferred_time_start ?? '',
         preferred_time_end: address.preferred_time_end ?? '',
+        preferred_driver_id: address.preferred_driver_id ?? undefined,
       });
     } else {
       setFormData({
@@ -57,6 +74,7 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
         service_time_minutes: 5,
         preferred_time_start: '',
         preferred_time_end: '',
+        preferred_driver_id: undefined,
       });
     }
   }, [address]);
@@ -77,6 +95,7 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
         notes: formData.notes || undefined,
         preferred_time_start: formData.preferred_time_start || undefined,
         preferred_time_end: formData.preferred_time_end || undefined,
+        preferred_driver_id: formData.preferred_driver_id || undefined,
       };
 
       if (isEditing && address) {
@@ -93,7 +112,7 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
     }
   };
 
-  const handleChange = (field: keyof AddressCreate, value: string | number) => {
+  const handleChange = (field: keyof AddressCreate, value: string | number | undefined) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -266,6 +285,31 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
               onChange={(e) => handleChange('preferred_time_end', e.target.value)}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
             />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label htmlFor="preferred_driver" className="block text-sm font-medium text-gray-700">
+              Preferred Driver (optional)
+            </label>
+            <select
+              id="preferred_driver"
+              value={formData.preferred_driver_id ?? ''}
+              onChange={(e) => handleChange(
+                'preferred_driver_id',
+                e.target.value ? parseInt(e.target.value) : undefined
+              )}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+            >
+              <option value="">No preference</option>
+              {drivers.map((driver) => (
+                <option key={driver.id} value={driver.id}>
+                  {driver.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              Route optimizer will try to assign this address to the preferred driver when possible
+            </p>
           </div>
 
           <div className="sm:col-span-2">

@@ -242,32 +242,41 @@ async def optimize_routes(
     # Analyze dropped addresses and build detailed diagnostics
     dropped_address_details = []
     if solution['dropped_nodes']:
-        # Get diagnostics from solver
-        node_analysis = solver.analyze_dropped_nodes(solution['dropped_nodes'])
+        # Filter out home location indices - they are vehicle endpoints, not delivery stops
+        # Home locations start after depot (0) and addresses (1 to len(addresses))
+        home_location_start_idx = len(addresses) + 1
+        dropped_address_nodes = [
+            node_idx for node_idx in solution['dropped_nodes']
+            if node_idx < home_location_start_idx and node_idx != 0
+        ]
 
-        # Build detailed messages for each dropped address
-        for node_idx in solution['dropped_nodes']:
-            address = address_map[node_idx]
-            analysis = node_analysis[node_idx]
+        if dropped_address_nodes:
+            # Get diagnostics from solver
+            node_analysis = solver.analyze_dropped_nodes(dropped_address_nodes)
 
-            # Build human-readable reason
-            reasons = []
-            if 'narrow_time_window' in analysis['reasons']:
-                tw_str = f"{address.preferred_time_start or 'none'}-{address.preferred_time_end or 'none'}"
-                reasons.append(f"Time window too restrictive ({tw_str})")
-            if 'high_service_time' in analysis['reasons']:
-                reasons.append(f"Service time too long ({address.service_time_minutes} min)")
-            if 'capacity_or_duration' in analysis['reasons']:
-                reasons.append("All drivers at capacity or route duration exceeded")
+            # Build detailed messages for each dropped address
+            for node_idx in dropped_address_nodes:
+                address = address_map[node_idx]
+                analysis = node_analysis[node_idx]
 
-            dropped_address_details.append(DroppedAddressDetail(
-                address_id=address.id,
-                recipient_name=address.recipient_name or 'Unknown',
-                street=address.street,
-                reason=' | '.join(reasons) if reasons else 'Capacity or duration constraints',
-                time_window=f"{address.preferred_time_start or 'none'} - {address.preferred_time_end or 'none'}",
-                service_time_minutes=address.service_time_minutes
-            ))
+                # Build human-readable reason
+                reasons = []
+                if 'narrow_time_window' in analysis['reasons']:
+                    tw_str = f"{address.preferred_time_start or 'none'}-{address.preferred_time_end or 'none'}"
+                    reasons.append(f"Time window too restrictive ({tw_str})")
+                if 'high_service_time' in analysis['reasons']:
+                    reasons.append(f"Service time too long ({address.service_time_minutes} min)")
+                if 'capacity_or_duration' in analysis['reasons']:
+                    reasons.append("All drivers at capacity or route duration exceeded")
+
+                dropped_address_details.append(DroppedAddressDetail(
+                    address_id=address.id,
+                    recipient_name=address.recipient_name or 'Unknown',
+                    street=address.street,
+                    reason=' | '.join(reasons) if reasons else 'Capacity or duration constraints',
+                    time_window=f"{address.preferred_time_start or 'none'} - {address.preferred_time_end or 'none'}",
+                    service_time_minutes=address.service_time_minutes
+                ))
 
     # Create or update DeliveryDay
     result = await db.execute(
@@ -347,8 +356,9 @@ async def optimize_routes(
         for j, stop_data in enumerate(route_data['stops']):
             location_idx = stop_data['location_index']
 
-            # Skip depot (index 0)
-            if location_idx == 0:
+            # Skip depot (index 0) and home locations (indices after addresses)
+            # Only process actual delivery addresses
+            if location_idx == 0 or location_idx not in address_map:
                 continue
 
             address = address_map[location_idx]
@@ -389,6 +399,13 @@ async def optimize_routes(
     )
     created_routes = list(result.scalars().all())
 
+    # Filter dropped nodes to only include actual addresses (not depot or home locations)
+    home_location_start_idx = len(addresses) + 1
+    dropped_address_ids = [
+        address_map[idx].id for idx in solution['dropped_nodes']
+        if idx < home_location_start_idx and idx != 0
+    ]
+
     # Build response
     return OptimizationResult(
         delivery_day_id=delivery_day.id,
@@ -399,7 +416,7 @@ async def optimize_routes(
         total_distance_km=delivery_day.total_distance_km,
         total_duration_minutes=delivery_day.total_duration_minutes,
         routes=[RouteSchema.model_validate(r) for r in created_routes],
-        dropped_addresses=[address_map[idx].id for idx in solution['dropped_nodes']],
+        dropped_addresses=dropped_address_ids,
         dropped_address_details=dropped_address_details,
         message=f"Successfully optimized {len(addresses)} addresses into {len(created_routes)} routes"
     )

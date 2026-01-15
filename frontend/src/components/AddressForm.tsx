@@ -122,16 +122,30 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <AddressAutocomplete
-              id="street"
-              label="Street Address"
-              required
-              initialValue={formData.street}
+              id="address-search"
+              label="Search Address"
+              initialValue=""
               onSelectParsed={handleAddressSelect}
-              placeholder="Start typing to search for an address..."
+              clearOnSelect={true}
+              placeholder="Type full address to search (e.g., 123 Main St Minneapolis MN)"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Type to search, or enter address manually in fields below
+              Search to auto-fill fields below, or enter manually
             </p>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label htmlFor="street" className="block text-sm font-medium text-gray-700">
+              Street Address *
+            </label>
+            <input
+              type="text"
+              id="street"
+              required
+              value={formData.street}
+              onChange={(e) => handleChange('street', e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+            />
           </div>
 
           <div>

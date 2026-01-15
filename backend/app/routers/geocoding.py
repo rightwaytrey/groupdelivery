@@ -41,6 +41,8 @@ async def search_addresses(
                     "addressdetails": 1,
                     "limit": limit,
                     "countrycodes": countrycodes,
+                    "viewbox": "-93.8,45.2,-92.8,44.7",  # Minneapolis-St. Paul metro area (west,north,east,south)
+                    "bounded": 0,  # Prefer but don't restrict to viewbox
                 },
                 headers={
                     "User-Agent": settings.geocoding_user_agent,

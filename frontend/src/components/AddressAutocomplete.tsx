@@ -20,6 +20,8 @@ interface AddressAutocompleteProps {
   className?: string;
   // ID for the input element
   id?: string;
+  // Clear input after selection (useful for search-only fields)
+  clearOnSelect?: boolean;
 }
 
 export default function AddressAutocomplete({
@@ -31,6 +33,7 @@ export default function AddressAutocomplete({
   placeholder = 'Start typing an address...',
   className = '',
   id = 'address-autocomplete',
+  clearOnSelect = false,
 }: AddressAutocompleteProps) {
   const [inputValue, setInputValue] = useState(initialValue);
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
@@ -77,7 +80,7 @@ export default function AddressAutocomplete({
 
   // Handle selection of a suggestion
   const handleSelect = (suggestion: AddressSuggestion) => {
-    setInputValue(suggestion.display_name);
+    setInputValue(clearOnSelect ? '' : suggestion.display_name);
     setIsOpen(false);
     setSuggestions([]);
 

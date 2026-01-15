@@ -381,24 +381,36 @@ async def optimize_routes(
         color = ROUTE_COLORS[i % len(ROUTE_COLORS)]
 
         # Get route geometry from OSRM
-        # If driver ends at home, insert home location before final depot return
+        # If driver ends at home, replace final depot return with home location
         route_locations = [locations[stop['location_index']] for stop in route_data['stops']]
 
         if driver.id in driver_home_locations:
-            # Insert home location before the last stop (depot return)
+            # Replace the last stop (depot return) with home location
             # route_locations is: [depot, stop1, stop2, ..., depot]
-            # We want: [depot, stop1, stop2, ..., home, depot]
+            # We want: [depot, stop1, stop2, ..., home] (END - no depot return)
             home_coords = driver_home_locations[driver.id]
-            route_locations.insert(-1, home_coords)
-            logger.info(f"Inserted home location for driver {driver.name} into route geometry")
-            print(f"Inserted home location for driver {driver.name} into route geometry", flush=True)
+            route_locations[-1] = home_coords
+            logger.info(f"Route ends at home for driver {driver.name}, removed depot return")
+            print(f"Route ends at home for driver {driver.name}, removed depot return", flush=True)
 
         try:
             geometry_data = await osrm_service.get_route_geometry(route_locations)
             route_geometry = json.dumps(geometry_data['geometry'])
+            # If route ends at home, use OSRM's actual distance/duration
+            # instead of OR-Tools values (which include depot return)
+            if driver.id in driver_home_locations:
+                actual_distance_km = geometry_data['distance_km']
+                actual_duration_minutes = geometry_data['duration_minutes']
+                logger.info(f"Using OSRM distance/duration for home-ending route: {actual_distance_km:.2f}km, {actual_duration_minutes:.2f}min")
+                print(f"Using OSRM distance/duration: {actual_distance_km:.2f}km, {actual_duration_minutes:.2f}min", flush=True)
+            else:
+                actual_distance_km = route_data['distance_km']
+                actual_duration_minutes = route_data['duration_minutes']
         except Exception as e:
             print(f"Warning: Failed to get route geometry: {e}")
             route_geometry = None
+            actual_distance_km = route_data['distance_km']
+            actual_duration_minutes = route_data['duration_minutes']
 
         # Calculate start/end times
         # Use earliest start time as base for formatting (cumulative time is relative to earliest start)
@@ -406,7 +418,12 @@ async def optimize_routes(
         earliest_start_offset = time_to_minutes(earliest_start)
 
         start_minutes = route_data['stops'][0]['time_minutes']
-        end_minutes = route_data['stops'][-1]['time_minutes']
+        # If route ends at home, recalculate end time based on actual duration
+        if driver.id in driver_home_locations:
+            end_minutes = start_minutes + actual_duration_minutes
+        else:
+            end_minutes = route_data['stops'][-1]['time_minutes']
+
         start_time = format_time(start_minutes, earliest_start_offset)
         end_time = format_time(end_minutes, earliest_start_offset)
 
@@ -416,8 +433,8 @@ async def optimize_routes(
             route_number=i + 1,
             color=color,
             total_stops=len(route_data['stops']) - 2,  # Exclude depot start/end
-            total_distance_km=route_data['distance_km'],
-            total_duration_minutes=route_data['duration_minutes'],
+            total_distance_km=actual_distance_km,
+            total_duration_minutes=actual_duration_minutes,
             route_geometry=route_geometry,
             start_time=start_time,
             end_time=end_time

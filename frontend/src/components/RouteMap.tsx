@@ -15,6 +15,22 @@ let DefaultIcon = L.icon({
   iconAnchor: [12, 41],
 });
 
+// Create a custom home icon using SVG
+const homeIconSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+  <path d="M11.47 3.84a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.06l-8.689-8.69a2.25 2.25 0 00-3.182 0l-8.69 8.69a.75.75 0 001.061 1.06l8.69-8.69z" />
+  <path d="M12 5.432l8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-3a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H5.625a1.875 1.875 0 01-1.875-1.875v-6.198a2.29 2.29 0 00.091-.086L12 5.43z" />
+</svg>
+`;
+
+const HomeIcon = L.divIcon({
+  html: `<div style="color: #EF4444; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">${homeIconSvg}</div>`,
+  className: 'custom-home-icon',
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+  popupAnchor: [0, -32],
+});
+
 L.Marker.prototype.options.icon = DefaultIcon;
 
 interface RouteMapProps {
@@ -173,6 +189,58 @@ export default function RouteMap({ routes, addresses, drivers, height = '600px' 
               </Marker>
             );
           });
+        })}
+
+        {/* Draw home endpoint markers for routes ending at driver's home */}
+        {routes.map((route) => {
+          const driver = driverMap.get(route.driver_id);
+          // Check if driver has home coordinates and route geometry ends near home
+          if (!driver || !driver.home_latitude || !driver.home_longitude) return null;
+
+          // Parse route geometry to get the last coordinate (endpoint)
+          if (!route.route_geometry) return null;
+
+          try {
+            const geometry = JSON.parse(route.route_geometry);
+            if (!geometry.coordinates || geometry.coordinates.length === 0) return null;
+
+            // Get last coordinate from route geometry [lon, lat]
+            const lastCoord = geometry.coordinates[geometry.coordinates.length - 1];
+            const endLat = lastCoord[1];
+            const endLon = lastCoord[0];
+
+            // Check if endpoint is close to driver's home (within ~100 meters)
+            const latDiff = Math.abs(endLat - driver.home_latitude);
+            const lonDiff = Math.abs(endLon - driver.home_longitude);
+            const isAtHome = latDiff < 0.001 && lonDiff < 0.001;
+
+            if (!isAtHome) return null;
+
+            return (
+              <Marker
+                key={`home-${route.id}`}
+                position={[driver.home_latitude, driver.home_longitude]}
+                icon={HomeIcon}
+              >
+                <Popup>
+                  <div className="text-sm">
+                    <h3 className="font-semibold">🏠 Route Endpoint</h3>
+                    <p style={{ color: route.color || '#3B82F6' }} className="font-semibold">
+                      Route #{route.route_number} - {driver.name}
+                    </p>
+                    <p className="text-xs mt-1"><strong>Ends at driver's home</strong></p>
+                    <p className="text-xs">{driver.home_address || 'Home address'}</p>
+                    <p className="text-xs mt-1">
+                      <strong>End time:</strong> {route.end_time}
+                    </p>
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          } catch (e) {
+            console.error('Failed to parse route geometry for home marker:', e);
+            return null;
+          }
         })}
 
         {/* Fit bounds to show all routes */}

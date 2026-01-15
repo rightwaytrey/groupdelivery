@@ -200,9 +200,15 @@ class VRPSolver:
 
         # Add capacity constraint (max stops per vehicle)
         def demand_callback(from_index):
-            """Returns the demand (1 stop per location)."""
+            """Returns the demand (1 stop per location, excluding depot and vehicle endpoints)."""
             from_node = manager.IndexToNode(from_index)
-            return 1 if from_node != self.depot_index else 0
+            # Depot has no demand
+            if from_node == self.depot_index:
+                return 0
+            # Home locations (vehicle end points) have no demand - they are endpoints not deliveries
+            if from_node in self.vehicle_ends:
+                return 0
+            return 1
 
         demand_callback_index = routing.RegisterUnaryTransitCallback(demand_callback)
 
@@ -215,9 +221,13 @@ class VRPSolver:
         )
 
         # Allow dropping nodes (with high penalty)
+        # Exclude home locations - they are mandatory vehicle endpoints
         penalty = 100000
+        home_indices = set(self.vehicle_ends) - {self.depot_index}
         for node in range(1, self.num_locations):
-            routing.AddDisjunction([manager.NodeToIndex(node)], penalty)
+            # Don't add home locations to disjunction - they are mandatory endpoints
+            if node not in home_indices:
+                routing.AddDisjunction([manager.NodeToIndex(node)], penalty)
 
         # Set search parameters
         search_parameters = pywrapcp.DefaultRoutingSearchParameters()

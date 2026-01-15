@@ -115,12 +115,17 @@ async def optimize_routes(
             if request.driver_constraints[driver.id].end_at_home:
                 if driver.home_latitude and driver.home_longitude:
                     drivers_ending_at_home[driver.id] = (driver.home_latitude, driver.home_longitude)
+                    logger.info(f"Driver {driver.name} (ID {driver.id}) will end at home: {driver.home_address}")
+                    print(f"Driver {driver.name} (ID {driver.id}) will end at home: {driver.home_address}", flush=True)
                 else:
                     # Driver wants to end at home but has no home address
                     raise HTTPException(
                         status_code=400,
                         detail=f"Driver {driver.name} has 'end at home' enabled but no home address configured"
                     )
+
+    logger.info(f"Drivers ending at home: {list(drivers_ending_at_home.keys())}")
+    print(f"Drivers ending at home: {list(drivers_ending_at_home.keys())}", flush=True)
 
     # Build locations list: depot first, then addresses, then home locations
     locations = [(depot_lat, depot_lon)]  # Index 0 = depot
@@ -153,9 +158,14 @@ async def optimize_routes(
     vehicle_ends = []
     for driver in drivers:
         if driver.id in home_location_indices:
-            vehicle_ends.append(home_location_indices[driver.id])
+            home_idx = home_location_indices[driver.id]
+            vehicle_ends.append(home_idx)
+            logger.info(f"Driver {driver.name} (ID {driver.id}) vehicle end index: {home_idx} (home)")
+            print(f"Driver {driver.name} (ID {driver.id}) vehicle end index: {home_idx} (home)", flush=True)
         else:
             vehicle_ends.append(0)  # Return to depot
+            logger.info(f"Driver {driver.name} (ID {driver.id}) vehicle end index: 0 (depot)")
+            print(f"Driver {driver.name} (ID {driver.id}) vehicle end index: 0 (depot)", flush=True)
 
     # Set up VRP solver
     solver = VRPSolver(
@@ -292,6 +302,13 @@ async def optimize_routes(
 
     if not solution:
         raise HTTPException(status_code=500, detail="No solution found. Try increasing time limit or reducing constraints.")
+
+    # Log route solution details
+    logger.info(f"VRP Solution: {solution['num_routes']} routes found")
+    for i, route_data in enumerate(solution['routes']):
+        stop_indices = [stop['location_index'] for stop in route_data['stops']]
+        logger.info(f"Route {i+1} (vehicle {route_data['vehicle_id']}): stops at location indices {stop_indices}")
+        print(f"Route {i+1} (vehicle {route_data['vehicle_id']}): stops at location indices {stop_indices}", flush=True)
 
     # Analyze dropped addresses and build detailed diagnostics
     dropped_address_details = []

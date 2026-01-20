@@ -30,6 +30,7 @@ export default function Routes() {
     start_time?: string;
     end_at_home?: boolean;
   }>>({});
+  const [addressSort, setAddressSort] = useState<'name' | 'street' | 'city'>('name');
 
   useEffect(() => {
     loadData();
@@ -289,6 +290,20 @@ export default function Routes() {
   };
 
   const geocodedAddresses = addresses.filter(addr => addr.latitude && addr.longitude);
+
+  const sortedAddresses = [...geocodedAddresses].sort((a, b) => {
+    switch (addressSort) {
+      case 'name':
+        return (a.recipient_name || '').localeCompare(b.recipient_name || '');
+      case 'street':
+        return a.street.localeCompare(b.street);
+      case 'city':
+        return a.city.localeCompare(b.city);
+      default:
+        return 0;
+    }
+  });
+
   const selectedDeliveryDay = deliveryDays.find(d => d.id === selectedDeliveryDayId);
 
   if (loading) {
@@ -406,11 +421,22 @@ export default function Routes() {
             <h4 className="text-sm font-medium text-gray-900 mb-2">
               Select Addresses ({selectedAddresses.length} selected)
             </h4>
+            <div className="mb-3">
+              <select
+                value={addressSort}
+                onChange={(e) => setAddressSort(e.target.value as 'name' | 'street' | 'city')}
+                className="px-3 py-2 text-sm border rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="name">Sort by Name</option>
+                <option value="street">Sort by Street</option>
+                <option value="city">Sort by City</option>
+              </select>
+            </div>
             <div className="border rounded-md p-4 max-h-60 overflow-y-auto">
               {geocodedAddresses.length === 0 ? (
                 <p className="text-sm text-gray-500">No geocoded addresses available. Please add addresses with valid coordinates.</p>
               ) : (
-                geocodedAddresses.map((addr) => (
+                sortedAddresses.map((addr) => (
                   <label key={addr.id} className="flex items-center py-2 hover:bg-gray-50 cursor-pointer">
                     <input
                       type="checkbox"

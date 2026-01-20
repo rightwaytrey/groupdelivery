@@ -24,6 +24,8 @@ class AddressBase(BaseModel):
     preferred_driver_id: Optional[int] = Field(
         None, description="Preferred driver for this address (soft constraint)"
     )
+    prefers_male_driver: bool = Field(default=False)
+    prefers_female_driver: bool = Field(default=False)
 
 
 class AddressCreate(AddressBase):
@@ -53,6 +55,8 @@ class AddressUpdate(BaseModel):
     preferred_driver_id: Optional[int] = Field(
         None, description="Preferred driver for this address (soft constraint)"
     )
+    prefers_male_driver: Optional[bool] = None
+    prefers_female_driver: Optional[bool] = None
     is_active: Optional[bool] = None
 
 

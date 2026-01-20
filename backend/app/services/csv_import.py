@@ -20,6 +20,8 @@ class CsvImportService:
         "preferred_time_start",
         "preferred_time_end",
         "preferred_driver_id",
+        "prefers_male_driver",
+        "prefers_female_driver",
     }
 
     async def parse_csv(self, file: UploadFile) -> Tuple[list[dict], list[dict]]:
@@ -121,6 +123,13 @@ class CsvImportService:
         else:
             cleaned["preferred_driver_id"] = None
 
+        # Gender preference fields (boolean)
+        prefers_male = row.get("prefers_male_driver", "").strip().lower()
+        cleaned["prefers_male_driver"] = prefers_male in ["true", "1", "yes", "y"]
+
+        prefers_female = row.get("prefers_female_driver", "").strip().lower()
+        cleaned["prefers_female_driver"] = prefers_female in ["true", "1", "yes", "y"]
+
         return cleaned
 
 
@@ -135,6 +144,7 @@ class DriverCsvImportService:
     OPTIONAL_COLUMNS = {
         "email",
         "phone",
+        "gender",
         "vehicle_type",
         "max_stops",
         "max_route_duration_minutes",
@@ -200,6 +210,8 @@ class DriverCsvImportService:
         # Optional string fields
         cleaned["email"] = row.get("email", "").strip() or None
         cleaned["phone"] = row.get("phone", "").strip() or None
+        gender = row.get("gender", "").strip().lower()
+        cleaned["gender"] = gender if gender in ["male", "female"] else None
         cleaned["vehicle_type"] = row.get("vehicle_type", "").strip() or None
         cleaned["home_address"] = row.get("home_address", "").strip() or None
 

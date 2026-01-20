@@ -15,6 +15,7 @@ class Driver(Base):
     name = Column(String(255), nullable=False)
     email = Column(String(255), nullable=True, unique=True)
     phone = Column(String(20), nullable=True)
+    gender = Column(String(10), nullable=True)  # "male", "female", or null
 
     # Vehicle info (optional capacity constraints)
     vehicle_type = Column(String(50), nullable=True)  # "sedan", "suv", "van", etc.

@@ -28,6 +28,8 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
     preferred_time_start: address?.preferred_time_start ?? '',
     preferred_time_end: address?.preferred_time_end ?? '',
     preferred_driver_id: address?.preferred_driver_id ?? undefined,
+    prefers_male_driver: address?.prefers_male_driver ?? false,
+    prefers_female_driver: address?.prefers_female_driver ?? false,
   });
 
   // Fetch active drivers for the dropdown
@@ -60,6 +62,8 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
         preferred_time_start: address.preferred_time_start ?? '',
         preferred_time_end: address.preferred_time_end ?? '',
         preferred_driver_id: address.preferred_driver_id ?? undefined,
+        prefers_male_driver: address.prefers_male_driver,
+        prefers_female_driver: address.prefers_female_driver,
       });
     } else {
       setFormData({
@@ -75,6 +79,8 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
         preferred_time_start: '',
         preferred_time_end: '',
         preferred_driver_id: undefined,
+        prefers_male_driver: false,
+        prefers_female_driver: false,
       });
     }
   }, [address]);
@@ -96,6 +102,8 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
         preferred_time_start: formData.preferred_time_start || undefined,
         preferred_time_end: formData.preferred_time_end || undefined,
         preferred_driver_id: formData.preferred_driver_id || undefined,
+        prefers_male_driver: formData.prefers_male_driver,
+        prefers_female_driver: formData.prefers_female_driver,
       };
 
       if (isEditing && address) {
@@ -125,6 +133,16 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
       postal_code: parsed.postal_code,
       country: parsed.country,
     }));
+  };
+
+  const handleGenderPrefChange = (field: 'prefers_male_driver' | 'prefers_female_driver', checked: boolean) => {
+    if (field === 'prefers_male_driver' && checked) {
+      setFormData(prev => ({ ...prev, prefers_male_driver: true, prefers_female_driver: false }));
+    } else if (field === 'prefers_female_driver' && checked) {
+      setFormData(prev => ({ ...prev, prefers_male_driver: false, prefers_female_driver: true }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: checked }));
+    }
   };
 
   return (
@@ -309,6 +327,35 @@ export default function AddressForm({ onSuccess, onCancel, address }: AddressFor
             </select>
             <p className="mt-1 text-xs text-gray-500">
               Route optimizer will try to assign this address to the preferred driver when possible
+            </p>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Driver Gender Preference (optional)
+            </label>
+            <div className="flex items-center gap-6">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.prefers_male_driver}
+                  onChange={(e) => handleGenderPrefChange('prefers_male_driver', e.target.checked)}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">Prefers Male Driver</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.prefers_female_driver}
+                  onChange={(e) => handleGenderPrefChange('prefers_female_driver', e.target.checked)}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">Prefers Female Driver</span>
+              </label>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Route optimizer will only assign drivers matching the gender preference. Only one can be selected.
             </p>
           </div>
 

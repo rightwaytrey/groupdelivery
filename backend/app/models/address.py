@@ -42,6 +42,10 @@ class Address(Base):
         Integer, ForeignKey("drivers.id", ondelete="SET NULL"), nullable=True
     )
 
+    # Gender preference for driver assignment
+    prefers_male_driver = Column(Boolean, default=False)
+    prefers_female_driver = Column(Boolean, default=False)
+
     # Relationships
     preferred_driver = relationship("Driver", foreign_keys=[preferred_driver_id])
 

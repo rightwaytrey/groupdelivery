@@ -107,6 +107,10 @@ async def optimize_routes(
     driver_id_to_vehicle_idx = {driver.id: idx for idx, driver in enumerate(drivers)}
     driver_ids_in_request = set(driver_id_to_vehicle_idx.keys())
 
+    # Build gender-based driver index lists
+    male_driver_indices = [idx for idx, driver in enumerate(drivers) if driver.gender == 'male']
+    female_driver_indices = [idx for idx, driver in enumerate(drivers) if driver.gender == 'female']
+
     # Always use default depot location
     depot_lat = settings.default_depot_latitude
     depot_lon = settings.default_depot_longitude
@@ -141,12 +145,16 @@ async def optimize_routes(
     # Collect and validate preferred driver constraints
     preferred_driver_constraints = {}
     preferred_driver_errors = []
+    gender_preference_errors = []
 
     for location_idx, addr in address_map.items():
+        allowed_vehicles = None
+
+        # Priority 1: Specific preferred driver
         if addr.preferred_driver_id is not None:
             if addr.preferred_driver_id in driver_ids_in_request:
                 vehicle_idx = driver_id_to_vehicle_idx[addr.preferred_driver_id]
-                preferred_driver_constraints[location_idx] = [vehicle_idx]
+                allowed_vehicles = [vehicle_idx]
             else:
                 # Track addresses with preferred drivers not in the selection
                 result = await db.execute(
@@ -161,6 +169,34 @@ async def optimize_routes(
                     'preferred_driver_name': preferred_driver.name if preferred_driver else 'Unknown'
                 })
 
+        # Priority 2: Gender preference (only if no specific driver)
+        elif addr.prefers_male_driver and not addr.prefers_female_driver:
+            if not male_driver_indices:
+                gender_preference_errors.append({
+                    'address_id': addr.id,
+                    'recipient_name': addr.recipient_name or 'Unknown',
+                    'street': addr.street,
+                    'preference': 'male driver',
+                    'message': 'No male drivers available in selection'
+                })
+            else:
+                allowed_vehicles = male_driver_indices
+        elif addr.prefers_female_driver and not addr.prefers_male_driver:
+            if not female_driver_indices:
+                gender_preference_errors.append({
+                    'address_id': addr.id,
+                    'recipient_name': addr.recipient_name or 'Unknown',
+                    'street': addr.street,
+                    'preference': 'female driver',
+                    'message': 'No female drivers available in selection'
+                })
+            else:
+                allowed_vehicles = female_driver_indices
+        # If both or neither checked: no constraint
+
+        if allowed_vehicles:
+            preferred_driver_constraints[location_idx] = allowed_vehicles
+
     # Fail early if any addresses have preferred drivers not in the selection
     if preferred_driver_errors:
         error_details = {
@@ -168,6 +204,15 @@ async def optimize_routes(
             'addresses': preferred_driver_errors
         }
         logger.error(f"Preferred driver validation failed: {error_details}")
+        raise HTTPException(status_code=400, detail=error_details)
+
+    # Fail if any addresses have gender preferences that cannot be satisfied
+    if gender_preference_errors:
+        error_details = {
+            'message': 'Some addresses require a driver gender not available in selected drivers',
+            'addresses': gender_preference_errors
+        }
+        logger.error(f"Gender preference validation failed: {error_details}")
         raise HTTPException(status_code=400, detail=error_details)
 
     # Add home locations to the end of locations list

@@ -14,6 +14,8 @@ export interface Address {
   preferred_time_end: string | null;
   preferred_driver_id: number | null;
   preferred_driver_name: string | null;
+  prefers_male_driver: boolean;
+  prefers_female_driver: boolean;
   latitude: number | null;
   longitude: number | null;
   geocode_status: string;
@@ -35,6 +37,8 @@ export interface AddressCreate {
   preferred_time_start?: string;
   preferred_time_end?: string;
   preferred_driver_id?: number;
+  prefers_male_driver?: boolean;
+  prefers_female_driver?: boolean;
 }
 
 // Driver types
@@ -43,6 +47,7 @@ export interface Driver {
   name: string;
   email: string | null;
   phone: string | null;
+  gender: string | null;
   vehicle_type: string | null;
   max_stops: number;
   max_route_duration_minutes: number;
@@ -59,6 +64,7 @@ export interface DriverCreate {
   name: string;
   email?: string;
   phone?: string;
+  gender?: string;
   vehicle_type?: string;
   max_stops?: number;
   max_route_duration_minutes?: number;

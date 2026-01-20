@@ -152,7 +152,24 @@ export default function Routes() {
       let errorMessage = 'Optimization failed';
 
       if (err.response?.data?.detail) {
-        errorMessage = err.response.data.detail;
+        const detail = err.response.data.detail;
+
+        // Handle structured error responses
+        if (typeof detail === 'object' && detail.message) {
+          errorMessage = detail.message;
+
+          // If there are specific addresses listed, add them to the message
+          if (detail.addresses && Array.isArray(detail.addresses) && detail.addresses.length > 0) {
+            const addressList = detail.addresses
+              .map((addr: any) => `${addr.recipient_name || 'Unknown'} (${addr.street}) - requires ${addr.preferred_driver_name || 'driver ' + addr.preferred_driver_id}`)
+              .join(', ');
+            errorMessage += `:\n${addressList}`;
+          }
+        } else if (typeof detail === 'string') {
+          errorMessage = detail;
+        } else {
+          errorMessage = JSON.stringify(detail);
+        }
       } else if (err.response?.data?.message) {
         errorMessage = err.response.data.message;
       } else if (err.message) {

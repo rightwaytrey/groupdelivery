@@ -149,7 +149,9 @@ class VRPSolver:
         for node_idx, vehicle_indices in self.allowed_vehicles.items():
             if 0 < node_idx < self.num_locations:
                 routing_index = manager.NodeToIndex(node_idx)
-                routing.SetAllowedVehiclesForIndex(routing_index, vehicle_indices)
+                # Ensure vehicle_indices is a proper list of ints
+                vehicle_list = [int(v) for v in vehicle_indices]
+                routing.SetAllowedVehiclesForIndex(routing_index, vehicle_list)
 
         # Create distance callback
         def distance_callback(from_index, to_index):

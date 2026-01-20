@@ -168,7 +168,8 @@ async def optimize_routes(
                     'recipient_name': addr.recipient_name or 'Unknown',
                     'street': addr.street,
                     'preferred_driver_id': addr.preferred_driver_id,
-                    'preferred_driver_name': preferred_driver.name if preferred_driver else 'Unknown'
+                    'preferred_driver_name': preferred_driver.name if preferred_driver else 'Unknown',
+                    'service_time_minutes': addr.service_time_minutes or 0
                 })
                 pre_dropped_address_ids.add(addr.id)
 
@@ -180,7 +181,8 @@ async def optimize_routes(
                     'recipient_name': addr.recipient_name or 'Unknown',
                     'street': addr.street,
                     'preference': 'male driver',
-                    'message': 'No male drivers available in selection'
+                    'message': 'No male drivers available in selection',
+                    'service_time_minutes': addr.service_time_minutes or 0
                 })
                 pre_dropped_address_ids.add(addr.id)
             else:
@@ -192,7 +194,8 @@ async def optimize_routes(
                     'recipient_name': addr.recipient_name or 'Unknown',
                     'street': addr.street,
                     'preference': 'female driver',
-                    'message': 'No female drivers available in selection'
+                    'message': 'No female drivers available in selection',
+                    'service_time_minutes': addr.service_time_minutes or 0
                 })
                 pre_dropped_address_ids.add(addr.id)
             else:
@@ -459,7 +462,7 @@ async def optimize_routes(
             street=error_info['street'],
             reason=f"Preferred driver '{error_info['preferred_driver_name']}' not in selected drivers",
             time_window='N/A',
-            service_time_minutes=None
+            service_time_minutes=error_info['service_time_minutes']
         ))
 
     for error_info in gender_preference_errors:
@@ -469,7 +472,7 @@ async def optimize_routes(
             street=error_info['street'],
             reason=f"Requires {error_info['preference']} but none available in selected drivers",
             time_window='N/A',
-            service_time_minutes=None
+            service_time_minutes=error_info['service_time_minutes']
         ))
 
     try:

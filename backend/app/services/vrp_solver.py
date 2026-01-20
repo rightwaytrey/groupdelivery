@@ -58,6 +58,9 @@ class VRPSolver:
         # Mandatory final stops per vehicle (location index that must be last before depot)
         self.vehicle_mandatory_final_stops = {}  # Map vehicle_id -> location_index
 
+        # Allowed vehicles per node (hard constraint for preferred drivers)
+        self.allowed_vehicles = {}  # Map node_index -> list of allowed vehicle indices
+
     def set_service_times(self, service_times: List[int]):
         """Set service time (in minutes) for each location."""
         self.service_times = service_times
@@ -97,6 +100,15 @@ class VRPSolver:
         """
         self.vehicle_mandatory_final_stops = mandatory_stops
 
+    def set_allowed_vehicles_for_nodes(self, allowed_vehicles: Dict[int, List[int]]):
+        """
+        Set which vehicles can visit each node (hard constraint for preferred drivers).
+
+        Args:
+            allowed_vehicles: Map of node_index -> list of allowed vehicle indices
+        """
+        self.allowed_vehicles = allowed_vehicles
+
     def solve(self, time_limit_seconds: int = 30) -> Optional[Dict]:
         """
         Solve the VRP and return optimized routes.
@@ -132,6 +144,12 @@ class VRPSolver:
 
         # Create routing model
         routing = pywrapcp.RoutingModel(manager)
+
+        # Apply preferred driver constraints (must be before AddDisjunction)
+        for node_idx, vehicle_indices in self.allowed_vehicles.items():
+            if 0 < node_idx < self.num_locations:
+                routing_index = manager.NodeToIndex(node_idx)
+                routing.SetAllowedVehiclesForIndex(vehicle_indices, routing_index)
 
         # Create distance callback
         def distance_callback(from_index, to_index):

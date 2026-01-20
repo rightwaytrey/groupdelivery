@@ -103,6 +103,10 @@ async def optimize_routes(
     if len(drivers) == 0:
         raise HTTPException(status_code=400, detail="At least one driver is required")
 
+    # Build driver ID to vehicle index mapping for preferred driver constraints
+    driver_id_to_vehicle_idx = {driver.id: idx for idx, driver in enumerate(drivers)}
+    driver_ids_in_request = set(driver_id_to_vehicle_idx.keys())
+
     # Always use default depot location
     depot_lat = settings.default_depot_latitude
     depot_lon = settings.default_depot_longitude
@@ -133,6 +137,38 @@ async def optimize_routes(
     for i, addr in enumerate(addresses):
         locations.append((addr.latitude, addr.longitude))
         address_map[i + 1] = addr  # +1 because depot is at index 0
+
+    # Collect and validate preferred driver constraints
+    preferred_driver_constraints = {}
+    preferred_driver_errors = []
+
+    for location_idx, addr in address_map.items():
+        if addr.preferred_driver_id is not None:
+            if addr.preferred_driver_id in driver_ids_in_request:
+                vehicle_idx = driver_id_to_vehicle_idx[addr.preferred_driver_id]
+                preferred_driver_constraints[location_idx] = [vehicle_idx]
+            else:
+                # Track addresses with preferred drivers not in the selection
+                result = await db.execute(
+                    select(Driver).where(Driver.id == addr.preferred_driver_id)
+                )
+                preferred_driver = result.scalar_one_or_none()
+                preferred_driver_errors.append({
+                    'address_id': addr.id,
+                    'recipient_name': addr.recipient_name or 'Unknown',
+                    'street': addr.street,
+                    'preferred_driver_id': addr.preferred_driver_id,
+                    'preferred_driver_name': preferred_driver.name if preferred_driver else 'Unknown'
+                })
+
+    # Fail early if any addresses have preferred drivers not in the selection
+    if preferred_driver_errors:
+        error_details = {
+            'message': 'Some addresses have preferred drivers that are not included in the selected drivers',
+            'addresses': preferred_driver_errors
+        }
+        logger.error(f"Preferred driver validation failed: {error_details}")
+        raise HTTPException(status_code=400, detail=error_details)
 
     # Add home locations to the end of locations list
     # These will be mandatory final stops in routes
@@ -261,6 +297,12 @@ async def optimize_routes(
         solver.set_vehicle_mandatory_final_stops(mandatory_final_stops)
         logger.info(f"Set mandatory final stops: {mandatory_final_stops}")
         print(f"Set mandatory final stops: {mandatory_final_stops}", flush=True)
+
+    # Apply preferred driver constraints (hard constraint - addresses MUST go to their preferred driver)
+    if preferred_driver_constraints:
+        solver.set_allowed_vehicles_for_nodes(preferred_driver_constraints)
+        logger.info(f"Applied preferred driver constraints for {len(preferred_driver_constraints)} addresses")
+        print(f"Applied preferred driver constraints for {len(preferred_driver_constraints)} addresses", flush=True)
 
     # Validate solver inputs before calling solve to prevent segfaults
     try:

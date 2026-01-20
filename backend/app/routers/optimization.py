@@ -144,8 +144,9 @@ async def optimize_routes(
 
     # Collect and validate preferred driver constraints
     preferred_driver_constraints = {}
-    preferred_driver_errors = []
-    gender_preference_errors = []
+    preferred_driver_errors = []  # Addresses with preferred drivers not in selection
+    gender_preference_errors = []  # Addresses with gender preferences not satisfiable
+    pre_dropped_address_ids = set()  # Track addresses to exclude from optimization
 
     for location_idx, addr in address_map.items():
         allowed_vehicles = None
@@ -157,6 +158,7 @@ async def optimize_routes(
                 allowed_vehicles = [vehicle_idx]
             else:
                 # Track addresses with preferred drivers not in the selection
+                # These will be automatically dropped from optimization
                 result = await db.execute(
                     select(Driver).where(Driver.id == addr.preferred_driver_id)
                 )
@@ -168,6 +170,7 @@ async def optimize_routes(
                     'preferred_driver_id': addr.preferred_driver_id,
                     'preferred_driver_name': preferred_driver.name if preferred_driver else 'Unknown'
                 })
+                pre_dropped_address_ids.add(addr.id)
 
         # Priority 2: Gender preference (only if no specific driver)
         elif addr.prefers_male_driver and not addr.prefers_female_driver:
@@ -179,6 +182,7 @@ async def optimize_routes(
                     'preference': 'male driver',
                     'message': 'No male drivers available in selection'
                 })
+                pre_dropped_address_ids.add(addr.id)
             else:
                 allowed_vehicles = male_driver_indices
         elif addr.prefers_female_driver and not addr.prefers_male_driver:
@@ -190,6 +194,7 @@ async def optimize_routes(
                     'preference': 'female driver',
                     'message': 'No female drivers available in selection'
                 })
+                pre_dropped_address_ids.add(addr.id)
             else:
                 allowed_vehicles = female_driver_indices
         # If both or neither checked: no constraint
@@ -197,23 +202,65 @@ async def optimize_routes(
         if allowed_vehicles:
             preferred_driver_constraints[location_idx] = allowed_vehicles
 
-    # Fail early if any addresses have preferred drivers not in the selection
+    # Log addresses that will be pre-dropped due to driver constraints
     if preferred_driver_errors:
-        error_details = {
-            'message': 'Some addresses have preferred drivers that are not included in the selected drivers',
-            'addresses': preferred_driver_errors
-        }
-        logger.error(f"Preferred driver validation failed: {error_details}")
-        raise HTTPException(status_code=400, detail=error_details)
+        logger.info(f"Pre-dropping {len(preferred_driver_errors)} addresses with unavailable preferred drivers")
+        print(f"Pre-dropping {len(preferred_driver_errors)} addresses with unavailable preferred drivers", flush=True)
 
-    # Fail if any addresses have gender preferences that cannot be satisfied
     if gender_preference_errors:
-        error_details = {
-            'message': 'Some addresses require a driver gender not available in selected drivers',
-            'addresses': gender_preference_errors
-        }
-        logger.error(f"Gender preference validation failed: {error_details}")
-        raise HTTPException(status_code=400, detail=error_details)
+        logger.info(f"Pre-dropping {len(gender_preference_errors)} addresses with unsatisfiable gender preferences")
+        print(f"Pre-dropping {len(gender_preference_errors)} addresses with unsatisfiable gender preferences", flush=True)
+
+    # Filter out pre-dropped addresses from optimization
+    if pre_dropped_address_ids:
+        filtered_addresses = [addr for addr in addresses if addr.id not in pre_dropped_address_ids]
+        logger.info(f"Filtered addresses: {len(addresses)} -> {len(filtered_addresses)} (dropped {len(pre_dropped_address_ids)} addresses)")
+
+        # Rebuild locations and address_map without pre-dropped addresses
+        locations = [(depot_lat, depot_lon)]  # Reset to depot only
+        address_map = {}  # Reset address map
+
+        for i, addr in enumerate(filtered_addresses):
+            locations.append((addr.latitude, addr.longitude))
+            address_map[i + 1] = addr  # +1 because depot is at index 0
+
+        # Rebuild preferred_driver_constraints with new indices
+        new_preferred_driver_constraints = {}
+        for location_idx, addr in address_map.items():
+            # Find if this address had constraints
+            for old_idx, old_addr in enumerate(addresses, start=1):
+                if old_addr.id == addr.id and old_idx in preferred_driver_constraints:
+                    new_preferred_driver_constraints[location_idx] = preferred_driver_constraints[old_idx]
+                    break
+
+        preferred_driver_constraints = new_preferred_driver_constraints
+        addresses = filtered_addresses  # Update addresses list for rest of optimization
+
+        # Check if all addresses were filtered out
+        if len(addresses) == 0:
+            # Build dropped details for error message
+            dropped_details = []
+            for error_info in preferred_driver_errors:
+                dropped_details.append({
+                    'address_id': error_info['address_id'],
+                    'recipient_name': error_info['recipient_name'],
+                    'street': error_info['street'],
+                    'reason': f"Preferred driver '{error_info['preferred_driver_name']}' not in selected drivers"
+                })
+            for error_info in gender_preference_errors:
+                dropped_details.append({
+                    'address_id': error_info['address_id'],
+                    'recipient_name': error_info['recipient_name'],
+                    'street': error_info['street'],
+                    'reason': f"Requires {error_info['preference']} but none available"
+                })
+
+            error_detail = {
+                'message': 'All addresses were excluded from optimization due to driver constraints',
+                'dropped_addresses': dropped_details,
+                'suggestion': 'Add the required drivers to your selection or remove driver preferences from these addresses'
+            }
+            raise HTTPException(status_code=400, detail=error_detail)
 
     # Add home locations to the end of locations list
     # These will be mandatory final stops in routes
@@ -403,6 +450,28 @@ async def optimize_routes(
 
     # Analyze dropped addresses and build detailed diagnostics
     dropped_address_details = []
+
+    # Add pre-dropped addresses (those with unavailable preferred drivers or gender preferences)
+    for error_info in preferred_driver_errors:
+        dropped_address_details.append(DroppedAddressDetail(
+            address_id=error_info['address_id'],
+            recipient_name=error_info['recipient_name'],
+            street=error_info['street'],
+            reason=f"Preferred driver '{error_info['preferred_driver_name']}' not in selected drivers",
+            time_window='N/A',
+            service_time_minutes=None
+        ))
+
+    for error_info in gender_preference_errors:
+        dropped_address_details.append(DroppedAddressDetail(
+            address_id=error_info['address_id'],
+            recipient_name=error_info['recipient_name'],
+            street=error_info['street'],
+            reason=f"Requires {error_info['preference']} but none available in selected drivers",
+            time_window='N/A',
+            service_time_minutes=None
+        ))
+
     try:
         if solution['dropped_nodes']:
             # Filter out depot (index 0), everything else is a delivery address
@@ -603,6 +672,9 @@ async def optimize_routes(
         address_map[idx].id for idx in solution['dropped_nodes']
         if idx != 0
     ]
+
+    # Add pre-dropped addresses (those filtered out before optimization)
+    dropped_address_ids.extend(list(pre_dropped_address_ids))
 
     # Build response
     return OptimizationResult(

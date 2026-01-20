@@ -146,12 +146,15 @@ class VRPSolver:
         routing = pywrapcp.RoutingModel(manager)
 
         # Apply preferred driver constraints (must be before AddDisjunction)
+        # Note: Using VehicleVar().SetValues() instead of SetAllowedVehiclesForIndex
+        # due to OR-Tools v9.15+ bug (GitHub #4982) where the SWIG wrapper
+        # cannot convert Python lists to absl::Span<const int>
         for node_idx, vehicle_indices in self.allowed_vehicles.items():
             if 0 < node_idx < self.num_locations:
                 routing_index = manager.NodeToIndex(node_idx)
-                # Ensure vehicle_indices is a proper list of ints
-                vehicle_list = [int(v) for v in vehicle_indices]
-                routing.SetAllowedVehiclesForIndex(routing_index, vehicle_list)
+                # Include -1 to allow node dropping (required for AddDisjunction compatibility)
+                vehicle_list = [int(v) for v in vehicle_indices] + [-1]
+                routing.VehicleVar(routing_index).SetValues(vehicle_list)
 
         # Create distance callback
         def distance_callback(from_index, to_index):
